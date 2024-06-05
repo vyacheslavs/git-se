@@ -9,7 +9,29 @@ from pygit2.enums import ApplyLocation
 from pygit2.enums import DiffStatsFormat
 from pygit2.enums import DeltaStatus
 
-#def partially_select(
+def partially_select(stdscr, diffconfig):
+    max_row = curses.LINES - 2
+    box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
+    box.box()
+
+    while True:
+
+        # now draw the patches
+        text_patch = diffconfig.patch.data.decode('utf-8')
+
+        oft = 1
+
+        for line in text_patch.splitlines():
+            box.addstr(oft, 1, line)
+            oft += 1
+
+        stdscr.refresh()
+        box.refresh()
+
+        key = stdscr.getch()
+        if key == curses.KEY_F10 or key == 113:
+            break
+    del box
 
 def main(stdscr, sd):
     # Clear screen
@@ -45,6 +67,24 @@ def main(stdscr, sd):
 
     class DiffConfig:
         selected = False
+        patch = None
+        def __init__(self, p):
+            self.patch = p
+
+        def marking(self):
+            return '+' if self.selected else ' '
+
+        def select(self):
+            self.selected = not self.selected
+
+        def select_ex(self):
+            if self.patch.delta.status != DeltaStatus.MODIFIED:
+                return
+            if self.patch.delta.is_binary:
+                return
+
+            partially_select(stdscr, self)
+
 
     while True:
         # draw menu
@@ -53,9 +93,11 @@ def main(stdscr, sd):
 
         for p in sd:
             if not oft - start_oft in cfg:
-                cfg.append(DiffConfig())
+                cfg.append(DiffConfig(p))
 
-            box.addstr(oft, 1, "[{}] {}".format('+' if cfg[oft - start_oft].selected else ' ',p.delta.new_file.path), curses.color_pair(p.delta.status + (12 if pos + start_oft == oft else 0)))
+            current_cfg = cfg[oft - start_oft]
+
+            box.addstr(oft, 1, "[{}] {}".format(current_cfg.marking(), p.delta.new_file.path), curses.color_pair(p.delta.status + (12 if pos + start_oft == oft else 0)))
             oft = oft + 1
 
 
@@ -76,10 +118,11 @@ def main(stdscr, sd):
                 pos -= 1
 
         if key == 32:
-            cfg[pos].selected = not cfg[pos].selected
+            cfg[pos].select()
 
         if key == 10:
-            print("ENTER")
+            cfg[pos].select_ex()
+            box.touchwin()
 
 # parse command line options
 parser = argparse.ArgumentParser(description='Git split-explain tool')
