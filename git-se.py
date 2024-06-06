@@ -20,8 +20,9 @@ def partially_select(stdscr, diffconfig):
         text_patch = diffconfig.patch.data.decode('utf-8')
 
         oft = 1
+        lines = text_patch.splitlines()
 
-        for line in text_patch.splitlines():
+        for line in lines:
 
             pallete = curses.color_pair(24)
 
@@ -35,6 +36,8 @@ def partially_select(stdscr, diffconfig):
 
             box.addstr(oft, 3, line, pallete)
             oft += 1
+            if oft > max_row - 2:
+                break
 
         stdscr.refresh()
         box.refresh()
