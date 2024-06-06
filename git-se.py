@@ -22,7 +22,18 @@ def partially_select(stdscr, diffconfig):
         oft = 1
 
         for line in text_patch.splitlines():
-            box.addstr(oft, 1, line)
+
+            pallete = curses.color_pair(24)
+
+            # check if it's a diff line
+            if len(line)>4 and line[0] =='d' and line[1] == 'i' and line[2] == 'f' and line[3] == 'f':
+                pallete = curses.color_pair(24) | curses.A_BOLD
+            if len(line)>=1 and line[0] == '+':
+                pallete = curses.color_pair(27) | curses.A_BOLD
+            if len(line)>=1 and line[0] == '-':
+                pallete = curses.color_pair(26) | curses.A_BOLD
+
+            box.addstr(oft, 3, line, pallete)
             oft += 1
 
         stdscr.refresh()
@@ -54,6 +65,11 @@ def main(stdscr, sd):
     curses.init_pair(DeltaStatus.COPIED + 12, curses.COLOR_YELLOW, curses.COLOR_BLUE)
     curses.init_pair(DeltaStatus.DELETED + 12, curses.COLOR_RED, curses.COLOR_BLUE)
     curses.init_pair(DeltaStatus.ADDED + 12, curses.COLOR_GREEN, curses.COLOR_BLUE)
+
+    curses.init_pair(24, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(25, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(26, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(27, curses.COLOR_GREEN, curses.COLOR_BLACK)
 
     max_row = curses.LINES - 2
 
