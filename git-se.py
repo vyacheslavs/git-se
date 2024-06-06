@@ -36,7 +36,7 @@ def partially_select(stdscr, diffconfig):
 
             box.addstr(oft, 3, line, pallete)
             oft += 1
-            if oft > max_row - 2:
+            if oft > max_row:
                 break
 
         stdscr.refresh()
