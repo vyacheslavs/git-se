@@ -4,40 +4,90 @@ from curses import wrapper
 import curses
 import argparse
 import pygit2
+import re
 from pygit2.enums import DiffOption
 from pygit2.enums import ApplyLocation
 from pygit2.enums import DiffStatsFormat
 from pygit2.enums import DeltaStatus
+
+def render_box(box, lines, pallete_map, lines_start_offset, cursor_position):
+    # render diff lines inside the box starting with `lines_start_offset`
+    lines_index = 0
+    text_y = 1
+    height, width = box.getmaxyx()
+    height -= 2 # minus top and bottom border
+
+    for line in lines:
+        # now skip `lines_start_offset` lines
+        if lines_index < lines_start_offset:
+            lines_index += 1
+            continue
+
+        while len(line) < width - 5:
+            line += " "
+
+        ci, bi = pallete_map[lines_index]
+        pallete = curses.color_pair(ci + (2 if cursor_position == lines_index else 0)) | bi;
+
+        box.addstr(text_y, 3, line, pallete)
+        lines_index += 1
+        text_y += 1
+
+        if text_y > height:
+            break
+
+def gen_navigation_map(box, lines):
+    # what is a navigation map? It is an array of tuples (lines_start_offset, position)
+    out = []
+    out_pallete = []
+    header_mode = True
+    lines_index = 0
+    height, width = box.getmaxyx()
+    height -= 3
+
+    for line in lines:
+        pallete = (24, curses.A_NORMAL)
+
+        current_patch_header = re.search(r"@@\s*(\-*\+*[0-9]+),([0-9]+)\s+(\-*\+*[0-9]+),([0-9]+)\s*@@", line)
+        if current_patch_header:
+            header_mode = False
+            pallete = (30, curses.A_BOLD)
+
+        if header_mode:
+            pallete = (24, curses.A_BOLD)
+
+        if len(line)>=1 and (line[0] == '-' or line[0] == '+') and not header_mode:
+            scroll_oft = lines_index - height if lines_index > height else 0
+            out.append((scroll_oft, lines_index))
+            pallete = (26 +  (1 if line[0] == '+' else 0), curses.A_BOLD)
+
+        out_pallete.append(pallete)
+
+        lines_index += 1
+    return (out, out_pallete)
 
 def partially_select(stdscr, diffconfig):
     max_row = curses.LINES - 2
     box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
     box.box()
 
+    # parse lines
+    text_patch = diffconfig.patch.data.decode('utf-8')
+    lines = text_patch.splitlines()
+
+    # now create a map of navigation
+    nav_map, pallete_map = gen_navigation_map(box, lines)
+
+    nav_map_index = 0
+    scroll_offset = 0
+    height, width = box.getmaxyx()
+    height -= 4 # minus top and bottom border
+
     while True:
-
         # now draw the patches
-        text_patch = diffconfig.patch.data.decode('utf-8')
 
-        oft = 1
-        lines = text_patch.splitlines()
-
-        for line in lines:
-
-            pallete = curses.color_pair(24)
-
-            # check if it's a diff line
-            if len(line)>4 and line[0] =='d' and line[1] == 'i' and line[2] == 'f' and line[3] == 'f':
-                pallete = curses.color_pair(24) | curses.A_BOLD
-            if len(line)>=1 and line[0] == '+':
-                pallete = curses.color_pair(27) | curses.A_BOLD
-            if len(line)>=1 and line[0] == '-':
-                pallete = curses.color_pair(26) | curses.A_BOLD
-
-            box.addstr(oft, 3, line, pallete)
-            oft += 1
-            if oft > max_row:
-                break
+        n1, n2 = nav_map[nav_map_index]
+        render_box(box, lines, pallete_map, scroll_offset, n2)
 
         stdscr.refresh()
         box.refresh()
@@ -45,6 +95,25 @@ def partially_select(stdscr, diffconfig):
         key = stdscr.getch()
         if key == curses.KEY_F10 or key == 113:
             break
+
+        if key == curses.KEY_DOWN:
+            if nav_map_index + 1 < len(nav_map):
+                nav_map_index += 1
+                n1, n2 = nav_map[nav_map_index]
+            elif scroll_offset + height + 2 < len(lines):
+                scroll_offset += 1
+            if n2 - scroll_offset > height:
+                scroll_offset = n2 - height - 1
+
+        if key == curses.KEY_UP:
+            if nav_map_index > 0:
+                nav_map_index -= 1
+            elif scroll_offset > 0:
+                scroll_offset -= 1
+            if n2 - scroll_offset <= 0:
+                n1, n2 = nav_map[nav_map_index]
+                scroll_offset = n2
+
     del box
 
 def main(stdscr, sd):
@@ -73,6 +142,11 @@ def main(stdscr, sd):
     curses.init_pair(25, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(26, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(27, curses.COLOR_GREEN, curses.COLOR_BLACK)
+
+    curses.init_pair(28, curses.COLOR_RED, curses.COLOR_BLUE)
+    curses.init_pair(29, curses.COLOR_GREEN, curses.COLOR_BLUE)
+
+    curses.init_pair(30, curses.COLOR_CYAN, curses.COLOR_BLACK)
 
     max_row = curses.LINES - 2
 
