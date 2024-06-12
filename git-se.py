@@ -10,16 +10,27 @@ from pygit2.enums import ApplyLocation
 from pygit2.enums import DiffStatsFormat
 from pygit2.enums import DeltaStatus
 import logging
+from dataclasses import dataclass
+from enum import Enum
 
-logger = logging.getLogger(__package__)
-logger.setLevel(logging.DEBUG)
-console_handler = logging.FileHandler("/dev/pts/2")
-formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
-                                  datefmt='%Y-%m-%d %H:%M:%S')
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
 
-logging.debug("git-se starting up")
+class LineType(Enum):
+    HEADER = 1
+    CO_LINE = 2
+    PATCH_HEADER = 3
+    PATCH_MINUS = 4
+    PATCH_PLUS = 5
+
+@dataclass
+class Meta:
+    line_type: LineType
+    patch_header: int
+    line1: int
+    line2: int
+    len1: int
+    len2: int
+    line: str
+    src: str
 
 def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lines_selected):
     # render diff lines inside the box starting with `lines_start_offset`
@@ -52,30 +63,52 @@ def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lin
         if text_y > height:
             break
 
-def gen_navigation_map(box, lines):
+def gen_navigation_map(box, lines, logger):
     # what is a navigation map? It is an array of tuples (lines_start_offset, position)
     out = []
     out_pallete = []
+    out_linedesc = []
+
     header_mode = True
     lines_index = 0
     height, width = box.getmaxyx()
     height -= 3
+    last_patch_header_line = -1
 
     for line in lines:
         pallete = (24, curses.A_NORMAL)
+        out_linedesc.append(Meta(LineType.CO_LINE, 0, 0, 0, 0, 0, "", ""))
 
-        current_patch_header = re.search(r"@@\s*(\-*\+*[0-9]+),([0-9]+)\s+(\-*\+*[0-9]+),([0-9]+)\s*@@", line)
+        out_linedesc[lines_index].src = line
+        current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+),([0-9]+)\s*@@ (.+)", line)
         if current_patch_header:
+            out_linedesc[lines_index].line_type = LineType.PATCH_HEADER
+            last_patch_header_line = lines_index
             header_mode = False
             pallete = (30, curses.A_BOLD)
+            out_linedesc[lines_index].line1 = int(current_patch_header.groups()[0]);
+            out_linedesc[lines_index].len1 = int(current_patch_header.groups()[1]);
+            out_linedesc[lines_index].line2 = int(current_patch_header.groups()[2]);
+            out_linedesc[lines_index].len2 = int(current_patch_header.groups()[3]);
+            out_linedesc[lines_index].line = current_patch_header.groups()[4];
+            logger.debug("patch header: {}".format(str(out_linedesc[lines_index])))
+
 
         if header_mode:
             pallete = (24, curses.A_BOLD)
+            out_linedesc[lines_index].line_type = LineType.HEADER
 
         if len(line)>=1 and (line[0] == '-' or line[0] == '+') and not header_mode:
             scroll_oft = lines_index - height if lines_index > height else 0
             out.append((scroll_oft, lines_index))
             pallete = (26 +  (1 if line[0] == '+' else 0), curses.A_BOLD)
+            out_linedesc[lines_index].line_type = LineType.PATCH_MINUS if line[0] == '-' else LineType.PATCH_PLUS
+            out_linedesc[lines_index].patch_header = last_patch_header_line
+
+        if out_linedesc[lines_index].line_type == LineType.CO_LINE:
+            out_linedesc[lines_index].patch_header = last_patch_header_line
+
+        logger.debug("{}: {} -> {}: {}".format(str(lines_index), out_linedesc[lines_index].line_type.name, out_linedesc[lines_index].patch_header, out_linedesc[lines_index].src))
 
         out_pallete.append(pallete)
 
@@ -85,10 +118,12 @@ def gen_navigation_map(box, lines):
 
 def generate_patch(lines, lines_selected): pass
 
-def partially_select(stdscr, diffconfig):
+def partially_select(stdscr, diffconfig, logger):
     max_row = curses.LINES - 2
     box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
     box.box()
+
+    logger.debug("open partially select dialog")
 
     # parse lines
     text_patch = diffconfig.patch.data.decode('utf-8')
@@ -99,7 +134,7 @@ def partially_select(stdscr, diffconfig):
         lines_selected.append(False)
 
     # now create a map of navigation
-    nav_map, pallete_map = gen_navigation_map(box, lines)
+    nav_map, pallete_map = gen_navigation_map(box, lines, logger)
 
     nav_map_index = 0
     scroll_offset = 0
@@ -144,6 +179,17 @@ def partially_select(stdscr, diffconfig):
     del box
 
 def main(stdscr, sd):
+
+    logger = logging.getLogger(__package__)
+    logger.setLevel(logging.DEBUG)
+    console_handler = logging.FileHandler("/dev/pts/2")
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    logger.debug("git-se starting up!!")
+
     # Clear screen
     stdscr.clear()
 
@@ -188,8 +234,10 @@ def main(stdscr, sd):
     class DiffConfig:
         selected = False
         patch = None
-        def __init__(self, p):
+        logger = None
+        def __init__(self, p, logger):
             self.patch = p
+            self.logger = logger
 
         def marking(self):
             return '+' if self.selected else ' '
@@ -203,7 +251,7 @@ def main(stdscr, sd):
             if self.patch.delta.is_binary:
                 return
 
-            partially_select(stdscr, self)
+            partially_select(stdscr, self, self.logger)
 
 
     while True:
@@ -213,7 +261,7 @@ def main(stdscr, sd):
 
         for p in sd:
             if not oft - start_oft in cfg:
-                cfg.append(DiffConfig(p))
+                cfg.append(DiffConfig(p, logger))
 
             current_cfg = cfg[oft - start_oft]
 
