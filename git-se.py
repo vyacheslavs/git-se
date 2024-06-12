@@ -10,7 +10,7 @@ from pygit2.enums import ApplyLocation
 from pygit2.enums import DiffStatsFormat
 from pygit2.enums import DeltaStatus
 
-def render_box(box, lines, pallete_map, lines_start_offset, cursor_position):
+def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lines_selected):
     # render diff lines inside the box starting with `lines_start_offset`
     lines_index = 0
     text_y = 1
@@ -26,10 +26,15 @@ def render_box(box, lines, pallete_map, lines_start_offset, cursor_position):
         while len(line) < width - 5:
             line += " "
 
+        if lines_selected[lines_index]:
+            line = "* " + line
+        else:
+            line = "  " + line
+
         ci, bi = pallete_map[lines_index]
         pallete = curses.color_pair(ci + (2 if cursor_position == lines_index else 0)) | bi;
 
-        box.addstr(text_y, 3, line, pallete)
+        box.addstr(text_y, 1, line, pallete)
         lines_index += 1
         text_y += 1
 
@@ -66,6 +71,9 @@ def gen_navigation_map(box, lines):
         lines_index += 1
     return (out, out_pallete)
 
+
+def generate_patch(lines, lines_selected): pass
+
 def partially_select(stdscr, diffconfig):
     max_row = curses.LINES - 2
     box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
@@ -74,6 +82,10 @@ def partially_select(stdscr, diffconfig):
     # parse lines
     text_patch = diffconfig.patch.data.decode('utf-8')
     lines = text_patch.splitlines()
+    lines_selected = []
+
+    for line in lines:
+        lines_selected.append(False)
 
     # now create a map of navigation
     nav_map, pallete_map = gen_navigation_map(box, lines)
@@ -87,7 +99,7 @@ def partially_select(stdscr, diffconfig):
         # now draw the patches
 
         n1, n2 = nav_map[nav_map_index]
-        render_box(box, lines, pallete_map, scroll_offset, n2)
+        render_box(box, lines, pallete_map, scroll_offset, n2, lines_selected)
 
         stdscr.refresh()
         box.refresh()
@@ -113,6 +125,10 @@ def partially_select(stdscr, diffconfig):
             if n2 - scroll_offset <= 0:
                 n1, n2 = nav_map[nav_map_index]
                 scroll_offset = n2
+
+        if key == 32:
+            lines_selected[n2] = not lines_selected[n2]
+            generate_patch(lines, lines_selected)
 
     del box
 
