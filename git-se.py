@@ -9,6 +9,17 @@ from pygit2.enums import DiffOption
 from pygit2.enums import ApplyLocation
 from pygit2.enums import DiffStatsFormat
 from pygit2.enums import DeltaStatus
+import logging
+
+logger = logging.getLogger(__package__)
+logger.setLevel(logging.DEBUG)
+console_handler = logging.FileHandler("/dev/pts/2")
+formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+logging.debug("git-se starting up")
 
 def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lines_selected):
     # render diff lines inside the box starting with `lines_start_offset`
