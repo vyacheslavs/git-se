@@ -10,16 +10,27 @@ from pygit2.enums import ApplyLocation
 from pygit2.enums import DiffStatsFormat
 from pygit2.enums import DeltaStatus
 import logging
+from dataclasses import dataclass
+from enum import Enum
 
-logger = logging.getLogger(__package__)
-logger.setLevel(logging.DEBUG)
-console_handler = logging.FileHandler("/dev/pts/2")
-formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
-                                  datefmt='%Y-%m-%d %H:%M:%S')
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
 
-logging.debug("git-se starting up")
+class LineType(Enum):
+    HEADER = 1
+    CO_LINE = 2
+    PATCH_HEADER = 3
+    PATCH_MINUS = 4
+    PATCH_PLUS = 5
+
+@dataclass
+class Meta:
+    line_type: LineType
+    patch_header: int
+    line1: int
+    line2: int
+    len1: int
+    len2: int
+    line: str
+    src: str
 
 def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lines_selected):
     # render diff lines inside the box starting with `lines_start_offset`
@@ -52,43 +63,167 @@ def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lin
         if text_y > height:
             break
 
-def gen_navigation_map(box, lines):
+def gen_navigation_map(box, lines, logger):
     # what is a navigation map? It is an array of tuples (lines_start_offset, position)
     out = []
     out_pallete = []
+    out_linedesc = []
+
     header_mode = True
     lines_index = 0
     height, width = box.getmaxyx()
     height -= 3
+    last_patch_header_line = -1
 
     for line in lines:
         pallete = (24, curses.A_NORMAL)
+        out_linedesc.append(Meta(LineType.CO_LINE, 0, 0, 0, 0, 0, "", ""))
 
-        current_patch_header = re.search(r"@@\s*(\-*\+*[0-9]+),([0-9]+)\s+(\-*\+*[0-9]+),([0-9]+)\s*@@", line)
+        out_linedesc[lines_index].src = line
+        current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+),([0-9]+)\s*@@ (.+)", line)
         if current_patch_header:
+            out_linedesc[lines_index].line_type = LineType.PATCH_HEADER
+            last_patch_header_line = lines_index
             header_mode = False
             pallete = (30, curses.A_BOLD)
+            out_linedesc[lines_index].line1 = int(current_patch_header.groups()[0]);
+            out_linedesc[lines_index].len1 = int(current_patch_header.groups()[1]);
+            out_linedesc[lines_index].line2 = int(current_patch_header.groups()[2]);
+            out_linedesc[lines_index].len2 = int(current_patch_header.groups()[3]);
+            out_linedesc[lines_index].line = current_patch_header.groups()[4];
+            logger.debug("patch header: {}".format(str(out_linedesc[lines_index])))
 
         if header_mode:
             pallete = (24, curses.A_BOLD)
+            out_linedesc[lines_index].line_type = LineType.HEADER
 
         if len(line)>=1 and (line[0] == '-' or line[0] == '+') and not header_mode:
             scroll_oft = lines_index - height if lines_index > height else 0
             out.append((scroll_oft, lines_index))
             pallete = (26 +  (1 if line[0] == '+' else 0), curses.A_BOLD)
+            out_linedesc[lines_index].line_type = LineType.PATCH_MINUS if line[0] == '-' else LineType.PATCH_PLUS
+            out_linedesc[lines_index].patch_header = last_patch_header_line
+
+        if out_linedesc[lines_index].line_type == LineType.CO_LINE:
+            out_linedesc[lines_index].patch_header = last_patch_header_line
+
+        logger.debug("{}: {} -> {}: {}".format(str(lines_index), out_linedesc[lines_index].line_type.name, out_linedesc[lines_index].patch_header, out_linedesc[lines_index].src))
 
         out_pallete.append(pallete)
 
         lines_index += 1
-    return (out, out_pallete)
+    return (out, out_pallete, out_linedesc)
 
 
-def generate_patch(lines, lines_selected): pass
+def generate_patch(lines, lines_selected, line_desc, logger):
+    out_patch = []
+    patch_line_index = 0
+    line_index = 0
+    last_patch_header = -1
+    len_minus = 0
+    len_plus = 0
+    skipped = 0
+    skipped_prev = 0
+    active_patch_header = None
+    prev_patch_line_index = 0
 
-def partially_select(stdscr, diffconfig):
+    logger.debug("===========================================================================================")
+
+    for d in line_desc:
+        # write all headers
+        if d.line_type == LineType.HEADER:
+            out_patch.append(d.src)
+            logger.debug("{:2d}.HEADER: {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+
+        elif d.line_type == LineType.PATCH_HEADER:
+
+            # remove previous hunk if no activity there
+            if last_patch_header > 0 and not active_patch_header:
+                logger.debug("remove hunk from {}".format(last_patch_header))
+                del out_patch[last_patch_header:]
+                patch_line_index = last_patch_header
+                skipped_prev = skipped
+            # fix the patch header for previous hunk
+            elif last_patch_header > 0 and active_patch_header:
+                logger.debug("active patch header: {}".format(str(active_patch_header)))
+                uc = 0
+                for p in range(last_patch_header+1, patch_line_index):
+                    if out_patch[p][0] == '+' or out_patch[p][0] == '-':
+                        break
+                    uc += 1
+                logger.debug("uc = {}, remove from: {} to {}, skipped: {}, skipped_prev: {}".format(uc,last_patch_header, last_patch_header+uc-2, skipped, skipped_prev))
+                del out_patch[last_patch_header:last_patch_header+uc-3]
+                out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
+                patch_line_index -= uc-3
+                skipped_prev = skipped
+
+            last_patch_header = patch_line_index
+            out_patch.append(d.src)
+            logger.debug("{:2d}.PHDR  : {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+            len_minus = 0
+            len_plus = 0
+            active_patch_header = None
+
+        elif d.line_type == LineType.CO_LINE:
+            out_patch.append(d.src)
+            len_minus += 1
+            len_plus += 1
+            logger.debug("{:2d}.COLINE: {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+        elif d.line_type == LineType.PATCH_PLUS and lines_selected[line_index]:
+            out_patch.append(d.src)
+            logger.debug("{:2d}.P_PLUS: {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+            len_minus += 1
+            active_patch_header = line_desc[d.patch_header]
+        elif d.line_type == LineType.PATCH_MINUS and lines_selected[line_index]:
+            out_patch.append(d.src)
+            logger.debug("{:2d}.P_MIN : {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+            len_plus += 1
+            active_patch_header = line_desc[d.patch_header]
+        elif d.line_type == LineType.PATCH_MINUS:
+            co_line = " " + d.src[1:]
+            len_plus += 1
+            len_minus += 1
+            patch_line_index += 1
+            skipped += 1
+            out_patch.append(co_line)
+            logger.debug("MINUS: skipped = {}".format(skipped))
+        elif d.line_type == LineType.PATCH_PLUS:
+            skipped -= 1
+            logger.debug("PLUS : skipped = {}".format(skipped))
+
+        line_index += 1
+
+    # remove previous hunk if no activity there
+    if last_patch_header > 0 and not active_patch_header:
+        logger.debug("remove hunk from {}".format(last_patch_header))
+        del out_patch[last_patch_header:]
+    elif last_patch_header > 0 and active_patch_header:
+        logger.debug("LAST: active patch header: {}".format(str(active_patch_header)))
+        uc = 0
+        for p in range(last_patch_header+1, patch_line_index):
+            if out_patch[p][0] == '+' or out_patch[p][0] == '-':
+                break
+            uc += 1
+        logger.debug("LAST: uc = {}".format(uc))
+        del out_patch[last_patch_header:last_patch_header+uc-3]
+        out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
+    # report outcome
+    with open("tmp.patch", "w") as f:
+        for p in out_patch:
+            logger.debug(">>> {}".format(p))
+            f.write("{}\n".format(p))
+
+def partially_select(stdscr, diffconfig, logger):
     max_row = curses.LINES - 2
     box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
     box.box()
+
+    logger.debug("open partially select dialog")
 
     # parse lines
     text_patch = diffconfig.patch.data.decode('utf-8')
@@ -99,7 +234,7 @@ def partially_select(stdscr, diffconfig):
         lines_selected.append(False)
 
     # now create a map of navigation
-    nav_map, pallete_map = gen_navigation_map(box, lines)
+    nav_map, pallete_map, line_desc = gen_navigation_map(box, lines, logger)
 
     nav_map_index = 0
     scroll_offset = 0
@@ -139,11 +274,22 @@ def partially_select(stdscr, diffconfig):
 
         if key == 32:
             lines_selected[n2] = not lines_selected[n2]
-            generate_patch(lines, lines_selected)
+            generate_patch(lines, lines_selected, line_desc, logger)
 
     del box
 
 def main(stdscr, sd):
+
+    logger = logging.getLogger(__package__)
+    logger.setLevel(logging.DEBUG)
+    console_handler = logging.FileHandler("/dev/pts/2")
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    logger.debug("git-se starting up!!")
+
     # Clear screen
     stdscr.clear()
 
@@ -188,8 +334,10 @@ def main(stdscr, sd):
     class DiffConfig:
         selected = False
         patch = None
-        def __init__(self, p):
+        logger = None
+        def __init__(self, p, logger):
             self.patch = p
+            self.logger = logger
 
         def marking(self):
             return '+' if self.selected else ' '
@@ -203,7 +351,7 @@ def main(stdscr, sd):
             if self.patch.delta.is_binary:
                 return
 
-            partially_select(stdscr, self)
+            partially_select(stdscr, self, self.logger)
 
 
     while True:
@@ -213,7 +361,7 @@ def main(stdscr, sd):
 
         for p in sd:
             if not oft - start_oft in cfg:
-                cfg.append(DiffConfig(p))
+                cfg.append(DiffConfig(p, logger))
 
             current_cfg = cfg[oft - start_oft]
 
