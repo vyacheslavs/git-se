@@ -48,6 +48,8 @@ def render_box(box, lines, pallete_map, lines_start_offset, cursor_position, lin
         while len(line) < width - 5:
             line += " "
 
+        line = line[:width-5]
+
         if lines_selected[lines_index]:
             line = "* " + line
         else:
