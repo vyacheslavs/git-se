@@ -113,10 +113,79 @@ def gen_navigation_map(box, lines, logger):
         out_pallete.append(pallete)
 
         lines_index += 1
-    return (out, out_pallete)
+    return (out, out_pallete, out_linedesc)
 
 
-def generate_patch(lines, lines_selected): pass
+def generate_patch(lines, lines_selected, line_desc, logger):
+    out_patch = []
+    patch_line_index = 0
+    line_index = 0
+    last_patch_header = -1
+    len_minus = 0
+    len_plus = 0
+    active_patch_header = None
+    prev_patch_line_index = 0
+
+    for d in line_desc:
+        # write all headers
+        if d.line_type == LineType.HEADER:
+            out_patch.append(d.src)
+            logger.debug("{:2d}.HEADER: {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+
+        elif d.line_type == LineType.PATCH_HEADER:
+
+            # remove previous hunk if no activity there
+            if last_patch_header > 0 and not active_patch_header:
+                logger.debug("remove hunk from {}".format(last_patch_header))
+                del out_patch[last_patch_header:]
+                patch_line_index = last_patch_header
+            # fix the patch header for previous hunk
+            elif last_patch_header > 0 and active_patch_header:
+                logger.debug("active patch header: {}".format(str(active_patch_header)))
+                out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1, len_minus, active_patch_header.line2, len_plus, active_patch_header.line)
+
+            last_patch_header = patch_line_index
+            out_patch.append(d.src)
+            logger.debug("{:2d}.PHDR  : {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+            len_minus = 0
+            len_plus = 0
+            active_patch_header = None
+
+        elif d.line_type == LineType.CO_LINE:
+            out_patch.append(d.src)
+            len_minus += 1
+            len_plus += 1
+            logger.debug("{:2d}.COLINE: {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+        elif d.line_type == LineType.PATCH_PLUS and lines_selected[line_index]:
+            out_patch.append(d.src)
+            logger.debug("{:2d}.P_PLUS: {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+            len_minus += 1
+            active_patch_header = line_desc[d.patch_header]
+        elif d.line_type == LineType.PATCH_MINUS and lines_selected[line_index]:
+            out_patch.append(d.src)
+            logger.debug("{:2d}.P_MIN : {}".format(patch_line_index, d.src))
+            patch_line_index += 1
+            len_plus += 1
+            active_patch_header = line_desc[d.patch_header]
+
+        line_index += 1
+
+    # remove previous hunk if no activity there
+    if last_patch_header > 0 and not active_patch_header:
+        logger.debug("remove hunk from {}".format(last_patch_header))
+        del out_patch[last_patch_header:]
+    elif last_patch_header > 0 and active_patch_header:
+        logger.debug("active patch header: {}".format(str(active_patch_header)))
+        out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1, len_minus, active_patch_header.line2, len_plus, active_patch_header.line)
+    # report outcome
+    with open("tmp.patch", "w") as f:
+        for p in out_patch:
+            logger.debug(">>> {}".format(p))
+            f.write("{}\n".format(p))
 
 def partially_select(stdscr, diffconfig, logger):
     max_row = curses.LINES - 2
@@ -134,7 +203,7 @@ def partially_select(stdscr, diffconfig, logger):
         lines_selected.append(False)
 
     # now create a map of navigation
-    nav_map, pallete_map = gen_navigation_map(box, lines, logger)
+    nav_map, pallete_map, line_desc = gen_navigation_map(box, lines, logger)
 
     nav_map_index = 0
     scroll_offset = 0
@@ -174,7 +243,7 @@ def partially_select(stdscr, diffconfig, logger):
 
         if key == 32:
             lines_selected[n2] = not lines_selected[n2]
-            generate_patch(lines, lines_selected)
+            generate_patch(lines, lines_selected, line_desc, logger)
 
     del box
 
