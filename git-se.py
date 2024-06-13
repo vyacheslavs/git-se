@@ -122,8 +122,12 @@ def generate_patch(lines, lines_selected, line_desc, logger):
     last_patch_header = -1
     len_minus = 0
     len_plus = 0
+    skipped = 0
+    skipped_prev = 0
     active_patch_header = None
     prev_patch_line_index = 0
+
+    logger.debug("===========================================================================================")
 
     for d in line_desc:
         # write all headers
@@ -139,6 +143,7 @@ def generate_patch(lines, lines_selected, line_desc, logger):
                 logger.debug("remove hunk from {}".format(last_patch_header))
                 del out_patch[last_patch_header:]
                 patch_line_index = last_patch_header
+                skipped_prev = skipped
             # fix the patch header for previous hunk
             elif last_patch_header > 0 and active_patch_header:
                 logger.debug("active patch header: {}".format(str(active_patch_header)))
@@ -147,10 +152,11 @@ def generate_patch(lines, lines_selected, line_desc, logger):
                     if out_patch[p][0] == '+' or out_patch[p][0] == '-':
                         break
                     uc += 1
-                logger.debug("uc = {}, remove from: {} to {}".format(uc,last_patch_header, last_patch_header+uc-2))
+                logger.debug("uc = {}, remove from: {} to {}, skipped: {}, skipped_prev: {}".format(uc,last_patch_header, last_patch_header+uc-2, skipped, skipped_prev))
                 del out_patch[last_patch_header:last_patch_header+uc-3]
-                out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3, len_minus - (uc-3), active_patch_header.line)
+                out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
                 patch_line_index -= uc-3
+                skipped_prev = skipped
 
             last_patch_header = patch_line_index
             out_patch.append(d.src)
@@ -183,7 +189,12 @@ def generate_patch(lines, lines_selected, line_desc, logger):
             len_plus += 1
             len_minus += 1
             patch_line_index += 1
+            skipped += 1
             out_patch.append(co_line)
+            logger.debug("MINUS: skipped = {}".format(skipped))
+        elif d.line_type == LineType.PATCH_PLUS:
+            skipped -= 1
+            logger.debug("PLUS : skipped = {}".format(skipped))
 
         line_index += 1
 
@@ -200,7 +211,7 @@ def generate_patch(lines, lines_selected, line_desc, logger):
             uc += 1
         logger.debug("LAST: uc = {}".format(uc))
         del out_patch[last_patch_header:last_patch_header+uc-3]
-        out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3, len_minus - (uc-3), active_patch_header.line)
+        out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
     # report outcome
     with open("tmp.patch", "w") as f:
         for p in out_patch:
