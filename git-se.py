@@ -388,7 +388,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partial_patch = partially_select(stdscr, self, self.logger)
             self.partially_selected = self.partial_patch != None
 
-        def export_patch(self, idx):
+        def export_patch(self, fil, prefix):
             if self.partially_selected:
                 with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
                     for line in self.partial_patch:
