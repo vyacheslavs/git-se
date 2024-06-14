@@ -563,7 +563,7 @@ SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
-ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Add the generated description after the title. Use monospaced font for output. Use simple words for description.")
+ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
     repo.branches.delete("git-se/" + first_commit)
@@ -610,3 +610,6 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
 ai_file.close()
+
+subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/git-se.txt | copyq copy -".format(SE_DIR)])
+
