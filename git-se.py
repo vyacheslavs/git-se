@@ -606,3 +606,4 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
+ai_file.close()
