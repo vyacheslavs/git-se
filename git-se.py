@@ -474,9 +474,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
-            ai_file.write("\n## {}\n".format(pd_com_line))
-            ai_file.write("<placeholder>\n")
             global ai_chapter
+            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line))
             ai_file.write("```\n")
             ai_chapter += 1
             for c in cfg:
