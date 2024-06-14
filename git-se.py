@@ -309,7 +309,7 @@ def ready_to_stage(cfg):
     return items > 0
 
 
-def main(stdscr, sd, repo, first_commit, git_se_head):
+def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
     logger = logging.getLogger(__package__)
     logger.setLevel(logging.DEBUG)
@@ -534,6 +534,8 @@ try:
 except:
     pass
 
+local_head = repo.revparse_single('HEAD').id
+
 last_commit_obj = repo.revparse_single(last_commit)
 
 first_commit_obj = repo.revparse_single(first_commit)
@@ -569,5 +571,5 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 
 #print("path: {}".format(repo.workdir))
 
-wrapper(main, sd, repo, first_commit, git_se_head)
+wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
