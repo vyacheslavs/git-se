@@ -12,7 +12,12 @@ from pygit2.enums import DeltaStatus
 import logging
 from dataclasses import dataclass
 from enum import Enum
+import subprocess
+import pathlib
 
+SE_DIR = ".git-se"
+
+pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
 class LineType(Enum):
     HEADER = 1
@@ -128,6 +133,7 @@ def generate_patch(lines, lines_selected, line_desc, logger):
     skipped_prev = 0
     active_patch_header = None
     prev_patch_line_index = 0
+    hunks = 0
 
     logger.debug("===========================================================================================")
 
@@ -159,6 +165,7 @@ def generate_patch(lines, lines_selected, line_desc, logger):
                 out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
                 patch_line_index -= uc-3
                 skipped_prev = skipped
+                hunks += 1
 
             last_patch_header = patch_line_index
             out_patch.append(d.src)
@@ -214,11 +221,16 @@ def generate_patch(lines, lines_selected, line_desc, logger):
         logger.debug("LAST: uc = {}".format(uc))
         del out_patch[last_patch_header:last_patch_header+uc-3]
         out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
+        hunks += 1
+
     # report outcome
-    with open("tmp.patch", "w") as f:
-        for p in out_patch:
-            logger.debug(">>> {}".format(p))
-            f.write("{}\n".format(p))
+    logger.debug("hunks exported: {}".format(hunks))
+    for p in out_patch:
+        logger.debug(">>> {}".format(p))
+    if not hunks:
+        return None
+    else:
+        return out_patch
 
 def partially_select(stdscr, diffconfig, logger):
     max_row = curses.LINES - 2
@@ -276,11 +288,28 @@ def partially_select(stdscr, diffconfig, logger):
 
         if key == 32:
             lines_selected[n2] = not lines_selected[n2]
-            generate_patch(lines, lines_selected, line_desc, logger)
 
     del box
+    return generate_patch(lines, lines_selected, line_desc, logger)
 
-def main(stdscr, sd):
+def main_box():
+    max_row = curses.LINES - 2
+    box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
+    box.box()
+
+    box.addstr(1,1, "Please select changes you want to separate. Use [space] to mark patches to include to the step. Use [enter] to split the modification.")
+    box.addstr(2,1, "When ready to commit stage press [F2]")
+    return box
+
+
+def ready_to_stage(cfg):
+    items = 0
+    for c in cfg:
+        items += 1 if not c.is_empty() else 0
+    return items > 0
+
+
+def main(stdscr, sd, repo, first_commit, git_se_head):
 
     logger = logging.getLogger(__package__)
     logger.setLevel(logging.DEBUG)
@@ -323,26 +352,29 @@ def main(stdscr, sd):
 
     curses.init_pair(30, curses.COLOR_CYAN, curses.COLOR_BLACK)
 
-    max_row = curses.LINES - 2
-
-    box = curses.newwin( max_row + 2, curses.COLS, 0, 0 )
-    box.box()
-
-    box.addstr(1,1, "Please select changes you want to separate. Use space to mark patches to include to the step. Use [enter] to split the modification.")
+    box = main_box()
 
     pos = 0
     cfg = []
 
     class DiffConfig:
         selected = False
+        partially_selected = False
         patch = None
         logger = None
+        partial_patch = None
+
         def __init__(self, p, logger):
             self.patch = p
             self.logger = logger
 
         def marking(self):
+            if self.partially_selected:
+                return '*'
             return '+' if self.selected else ' '
+
+        def is_empty(self):
+            return self.selected == False and self.partially_selected == False
 
         def select(self):
             self.selected = not self.selected
@@ -353,16 +385,47 @@ def main(stdscr, sd):
             if self.patch.delta.is_binary:
                 return
 
-            partially_select(stdscr, self, self.logger)
+            self.partial_patch = partially_select(stdscr, self, self.logger)
+            self.partially_selected = self.partial_patch != None
 
+        def export_patch(self, idx):
+            if self.partially_selected:
+                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                    for line in self.partial_patch:
+                        pp.write("{}\n".format(line))
+            elif self.selected:
+                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                    text_patch = self.patch.data.decode('utf-8')
+                    lines = text_patch.splitlines()
+                    for line in lines:
+                        pp.write("{}\n".format(line))
+
+        def apply_patch(self, idx, workdir):
+            if self.partially_selected:
+                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                    for line in self.partial_patch:
+                        pp.write("{}\n".format(line))
+            elif self.selected:
+                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                    text_patch = self.patch.data.decode('utf-8')
+                    lines = text_patch.splitlines()
+                    for line in lines:
+                        pp.write("{}\n".format(line))
+            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/__{}.patch".format(SE_DIR, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+
+        def add_to_index(self, idx):
+            if self.partially_selected or self.selected:
+                if self.patch.delta.new_file.path != self.patch.delta.old_file.path:
+                    idx.add(self.patch.delta.old_file.path)
+                idx.add(self.patch.delta.new_file.path)
 
     while True:
         # draw menu
-        start_oft = 3
+        start_oft = 4
         oft = start_oft
 
         for p in sd:
-            if not oft - start_oft in cfg:
+            if (oft - start_oft) >= len(cfg):
                 cfg.append(DiffConfig(p, logger))
 
             current_cfg = cfg[oft - start_oft]
@@ -378,6 +441,58 @@ def main(stdscr, sd):
 
         if key == curses.KEY_F10 or key == 113:
             break
+
+        if key == curses.KEY_F2:
+            if not ready_to_stage(cfg):
+                continue
+            del box
+
+            with open(SE_DIR + "/git-se._stage_desc.txt", "w") as staged:
+                staged.write("# Please describe the stage in view words, lines starting with # will be ignored\n")
+                staged.write("#\n")
+                for c in cfg:
+                    staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
+                staged.write("\n")
+
+            subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
+
+            # now checkout the starting reference
+            commit = pygit2.Oid(hex = first_commit)
+            repo.reset(commit, pygit2.GIT_RESET_HARD)
+
+            # apply patches
+            for c in range(0, len(cfg)):
+                cfg[c].apply_patch(c, repo.workdir)
+
+            # read text message
+            com_line = ""
+            with open(SE_DIR + "/git-se._stage_desc.txt", "r") as staged:
+                while lc := staged.readline():
+                    if lc[0] != "#":
+                        com_line += lc
+            logger.debug("comment: {}".format(com_line))
+
+            index = repo.index
+            author = pygit2.Signature('Git Se', 'gitse@gitse.se')
+            committer = pygit2.Signature('Git Se', 'gitse@gitse.se')
+
+            # add to index
+            for c in cfg:
+                c.add_to_index(index)
+
+            index.write()
+
+            tree = index.write_tree()
+            ref = repo.head.name
+            parents = [repo.head.target]
+            new_git_se_head = repo.create_commit(ref, author, committer, com_line, tree, parents)
+
+            # now cherry pick the final commit
+            # git cherry-pick --strategy=recursive -X theirs e6cc5b0
+            # logger.debug("git cherry-pick --strategy=recursive -X theirs {}"
+            subprocess.run(["git", "cherry-pick", "--strategy=recursive", "-X", "theirs", str(git_se_head)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+
+            box = main_box()
 
         if key == curses.KEY_DOWN:
             if pos<len(sd)-1:
@@ -449,5 +564,7 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 # print(sd.stats.format(format= DiffStatsFormat.FULL | DiffStatsFormat.INCLUDE_SUMMARY, width=120))
 
 
-wrapper(main, sd)
+#print("path: {}".format(repo.workdir))
+
+wrapper(main, sd, repo, first_commit, git_se_head)
 
