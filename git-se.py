@@ -19,6 +19,9 @@ SE_DIR = ".git-se"
 
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
+ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+ai_file.write("I will provide patches below with short text describing this patches. Please make describe the patches as detailed as you can considering the short description. Use mardown as output format. Use the same structure as input has. Use simple words for description\n\n")
+
 class LineType(Enum):
     HEADER = 1
     CO_LINE = 2
