@@ -490,8 +490,11 @@ def main(stdscr, sd, repo, first_commit, git_se_head):
             # now cherry pick the final commit
             # git cherry-pick --strategy=recursive -X theirs e6cc5b0
             # logger.debug("git cherry-pick --strategy=recursive -X theirs {}"
-            subprocess.run(["git", "cherry-pick", "--strategy=recursive", "-X", "theirs", str(git_se_head)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
-
+            proc = subprocess.run(["git", "cherry-pick", "-X", "theirs", str(git_se_head)], stdout = subprocess.DEVNULL)
+            if proc.returncode != 0:
+                logger.debug("subprocess ended [{}]".format(proc.returncode))
+                logger.debug("command: git cherry-pick -X theirs {}".format(str(git_se_head)))
+                raise Exception("cherry failed")
             box = main_box()
 
         if key == curses.KEY_DOWN:
