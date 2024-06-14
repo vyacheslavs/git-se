@@ -20,7 +20,7 @@ SE_DIR = ".git-se"
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
-ai_file.write("I will provide patches below with short text describing this patches. Please make describe the patches as detailed as you can considering the short description. Use mardown as output format. Replace short description with your generated description. Do not include the input patches to generated text. Use simple words for description.")
+ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Replace <placeholder> with your generated description. Use monospaced font for output. Use simple words for description.")
 
 class LineType(Enum):
     HEADER = 1
