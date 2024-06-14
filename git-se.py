@@ -475,18 +475,16 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                         com_line += lc
             logger.debug("comment: {}".format(com_line))
 
-            ai_file.write("Patch description\n")
-            ai_file.write("=================\n")
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
-            ai_file.write("{}\n\n".format(pd_com_line))
-            ai_file.write("Patch\n")
-            ai_file.write("==========================================================================================================================================\n")
+            ai_file.write("## {}\n".format(pd_com_line))
+            ai_file.write("<placeholder>\n")
+            ai_file.write("```\n")
             for c in cfg:
                 c.export_patch(ai_file, "")
             ai_file.write("\n")
 
-            ai_file.write("==========================================================================================================================================\n")
+            ai_file.write("```\n")
 
             index = repo.index
             author = pygit2.Signature('Git Se', 'gitse@gitse.se')
