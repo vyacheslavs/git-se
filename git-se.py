@@ -20,7 +20,7 @@ SE_DIR = ".git-se"
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
-ai_file.write("I will provide patches below with short text describing this patches. Please make describe the patches as detailed as you can considering the short description. Use mardown as output format. Replace short description with your generated description. Do not include the input patches to generated text. Use simple words for description.")
+ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Replace <placeholder> with your generated description. Use monospaced font for output. Use simple words for description.")
 
 class LineType(Enum):
     HEADER = 1
@@ -475,18 +475,16 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                         com_line += lc
             logger.debug("comment: {}".format(com_line))
 
-            ai_file.write("Patch description\n")
-            ai_file.write("=================\n")
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
-            ai_file.write("{}\n\n".format(pd_com_line))
-            ai_file.write("Patch\n")
-            ai_file.write("==========================================================================================================================================\n")
+            ai_file.write("\n## {}\n".format(pd_com_line))
+            ai_file.write("<placeholder>\n")
+            ai_file.write("```\n")
             for c in cfg:
                 c.export_patch(ai_file, "")
             ai_file.write("\n")
 
-            ai_file.write("==========================================================================================================================================\n")
+            ai_file.write("```\n")
 
             index = repo.index
             author = pygit2.Signature('Git Se', 'gitse@gitse.se')
