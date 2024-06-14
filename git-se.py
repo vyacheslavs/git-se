@@ -388,17 +388,15 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partial_patch = partially_select(stdscr, self, self.logger)
             self.partially_selected = self.partial_patch != None
 
-        def export_patch(self, idx):
+        def export_patch(self, fil, prefix):
             if self.partially_selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
-                    for line in self.partial_patch:
-                        pp.write("{}\n".format(line))
+                for line in self.partial_patch:
+                    fil.write("{}{}\n".format(prefix, line))
             elif self.selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
-                    text_patch = self.patch.data.decode('utf-8')
-                    lines = text_patch.splitlines()
-                    for line in lines:
-                        pp.write("{}\n".format(line))
+                text_patch = self.patch.data.decode('utf-8')
+                lines = text_patch.splitlines()
+                for line in lines:
+                    fil.write("{}{}\n".format(prefix, line))
 
         def apply_patch(self, idx, workdir):
             if self.partially_selected:
@@ -452,6 +450,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 staged.write("#\n")
                 for c in cfg:
                     staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
+                    staged.write("#\n")
+                    c.export_patch(staged, "# ")
                 staged.write("\n")
 
             subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
