@@ -450,6 +450,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 staged.write("#\n")
                 for c in cfg:
                     staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
+                    staged.write("#\n")
+                    c.export_patch(staged, "# ")
                 staged.write("\n")
 
             subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
