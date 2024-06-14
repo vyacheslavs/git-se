@@ -316,7 +316,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
     logger = logging.getLogger(__package__)
     logger.setLevel(logging.DEBUG)
-    console_handler = logging.FileHandler("/dev/pts/2")
+    console_handler = logging.FileHandler("{}/git-se.log".format(SE_DIR))
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
     console_handler.setFormatter(formatter)
