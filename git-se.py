@@ -564,6 +564,7 @@ repo_path = args.r
 
 repo = pygit2.Repository(repo_path)
 
+SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 try:
     repo.branches.delete("git-se/" + first_commit)
 except:
