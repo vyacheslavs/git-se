@@ -16,11 +16,8 @@ import subprocess
 import pathlib
 
 SE_DIR = ".git-se"
-
-pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
-
-ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
-ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Replace <placeholder> with your generated description. Use monospaced font for output. Use simple words for description.")
+ai_chapter = 1
+ai_file = None
 
 class LineType(Enum):
     HEADER = 1
@@ -316,7 +313,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
     logger = logging.getLogger(__package__)
     logger.setLevel(logging.DEBUG)
-    console_handler = logging.FileHandler("/dev/pts/2")
+    console_handler = logging.FileHandler("{}/git-se.log".format(SE_DIR))
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
     console_handler.setFormatter(formatter)
@@ -477,9 +474,10 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
-            ai_file.write("\n## {}\n".format(pd_com_line))
-            ai_file.write("<placeholder>\n")
+            global ai_chapter
+            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line))
             ai_file.write("```\n")
+            ai_chapter += 1
             for c in cfg:
                 c.export_patch(ai_file, "")
             ai_file.write("\n")
@@ -559,6 +557,13 @@ repo_path = args.r
 # delete temp branch
 
 repo = pygit2.Repository(repo_path)
+
+SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
+
+pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
+
+ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Add the generated description after the title. Use monospaced font for output. Use simple words for description.")
 
 try:
     repo.branches.delete("git-se/" + first_commit)
