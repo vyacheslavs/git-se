@@ -309,7 +309,7 @@ def ready_to_stage(cfg):
     return items > 0
 
 
-def main(stdscr, sd, repo, first_commit, git_se_head):
+def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
     logger = logging.getLogger(__package__)
     logger.setLevel(logging.DEBUG)
@@ -487,11 +487,31 @@ def main(stdscr, sd, repo, first_commit, git_se_head):
             parents = [repo.head.target]
             new_git_se_head = repo.create_commit(ref, author, committer, com_line, tree, parents)
 
+            # check if we finish work?
+            local_sd = repo.diff(new_git_se_head, local_head)
+
+            if len(local_sd) == 0:
+                break
+
             # now cherry pick the final commit
             # git cherry-pick --strategy=recursive -X theirs e6cc5b0
             # logger.debug("git cherry-pick --strategy=recursive -X theirs {}"
-            subprocess.run(["git", "cherry-pick", "--strategy=recursive", "-X", "theirs", str(git_se_head)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+            proc = subprocess.run(["git", "cherry-pick", "-X", "theirs", str(git_se_head)], stdout = subprocess.DEVNULL)
+            if proc.returncode != 0:
+                logger.debug("subprocess ended [{}]".format(proc.returncode))
+                logger.debug("command: git cherry-pick -X theirs {}".format(str(git_se_head)))
+                raise Exception("cherry failed")
 
+            del repo
+            repo = pygit2.Repository(repo_path)
+            sd = repo.diff(new_git_se_head, repo.head, flags=DiffOption.SHOW_BINARY)
+            cfg = []
+            git_se_head = repo.revparse_single('HEAD').id
+            first_commit = str(new_git_se_head)
+            logger.debug("new head = {}".format(str(git_se_head)))
+            pos = 0
+
+            stdscr.keypad( 1 )
             box = main_box()
 
         if key == curses.KEY_DOWN:
@@ -531,6 +551,8 @@ try:
 except:
     pass
 
+local_head = repo.revparse_single('HEAD').id
+
 last_commit_obj = repo.revparse_single(last_commit)
 
 first_commit_obj = repo.revparse_single(first_commit)
@@ -566,5 +588,5 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 
 #print("path: {}".format(repo.workdir))
 
-wrapper(main, sd, repo, first_commit, git_se_head)
+wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
