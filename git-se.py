@@ -16,8 +16,6 @@ import subprocess
 import pathlib
 
 SE_DIR = ".git-se"
-ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
-ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Replace <placeholder> with your generated description. Use monospaced font for output. Use simple words for description.")
 ai_chapter = 1
 ai_file = None
 
@@ -564,6 +562,9 @@ repo = pygit2.Repository(repo_path)
 SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
+
+ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was. Add the generated description after the title. Use monospaced font for output. Use simple words for description.")
 
 try:
     repo.branches.delete("git-se/" + first_commit)
