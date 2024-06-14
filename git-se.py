@@ -487,6 +487,12 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             parents = [repo.head.target]
             new_git_se_head = repo.create_commit(ref, author, committer, com_line, tree, parents)
 
+            # check if we finish work?
+            local_sd = repo.diff(new_git_se_head, local_head)
+
+            if len(local_sd) == 0:
+                break
+
             # now cherry pick the final commit
             # git cherry-pick --strategy=recursive -X theirs e6cc5b0
             # logger.debug("git cherry-pick --strategy=recursive -X theirs {}"
