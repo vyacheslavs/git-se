@@ -390,15 +390,13 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
         def export_patch(self, fil, prefix):
             if self.partially_selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
-                    for line in self.partial_patch:
-                        pp.write("{}\n".format(line))
+                for line in self.partial_patch:
+                    fil.write("{}{}\n".format(prefix, line))
             elif self.selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
-                    text_patch = self.patch.data.decode('utf-8')
-                    lines = text_patch.splitlines()
-                    for line in lines:
-                        pp.write("{}\n".format(line))
+                text_patch = self.patch.data.decode('utf-8')
+                lines = text_patch.splitlines()
+                for line in lines:
+                    fil.write("{}{}\n".format(prefix, line))
 
         def apply_patch(self, idx, workdir):
             if self.partially_selected:
