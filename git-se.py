@@ -606,7 +606,6 @@ parser.add_argument('start commit', metavar='S', type=str, nargs=1,
 parser.add_argument('-e', metavar='E', type=str,
                     help='end commits', default='HEAD')
 parser.add_argument('-r', metavar='R', type=str, help='repository path', default='.')
-parser.add_argument('-t', metavar='C', type=str, help='recreator branch', default='recreator')
 args = parser.parse_args()
 
 first_commit = getattr(args, 'start commit')[0]
@@ -624,9 +623,17 @@ pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
 recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
 
+recreator_branch = "git-se/{}/recreator".format(first_commit)
+
 recreator_file.write("#!/usr/bin/env bash\n\n")
-recreator_file.write("git branch {} {}\n".format(args.t, first_commit))
-recreator_file.write("git checkout {}\n".format(args.t))
+
+recreator_file.write("RECREATOR_BRANCH=\"{}\"\n".format(recreator_branch))
+recreator_file.write("if [ -n \"$1\" ]; then\n")
+recreator_file.write("    RECREATOR_BRANCH=\"$1\"\n")
+recreator_file.write("fi\n")
+recreator_file.write("git branch -D \"${RECREATOR_BRANCH}\"\n")
+recreator_file.write("git branch \"${{RECREATOR_BRANCH}}\" {}\n".format(first_commit))
+recreator_file.write("git checkout \"${RECREATOR_BRANCH}\"\n")
 ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use Markdown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
@@ -662,21 +669,7 @@ ref = repo.head.name
 parents = [repo.head.target]
 git_se_head = repo.create_commit(ref, author, committer, message, tree, parents)
 
-
 sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
-
-# now lets see what's in a diff
-# sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
-# for p in sd:
-#     print("old file:", p.delta.old_file.path, "new file: ", p.delta.new_file.path, "is_binary: ", p.delta.is_binary, "nfiles:", p.delta.nfiles, "similarity:", p.delta.similarity, "status: ", p.delta.status)
-#     print("-----------------")
-#     print(p.data)
-#     print("-----------------")
-# 
-# print(sd.stats.format(format= DiffStatsFormat.FULL | DiffStatsFormat.INCLUDE_SUMMARY, width=120))
-
-
-#print("path: {}".format(repo.workdir))
 
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
