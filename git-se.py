@@ -508,6 +508,15 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     pp = c.squeze()
                     if len(pp) > 0:
                         patches += "```\n{}\n```".format(json.dumps(pp));
+
+                response = oai.chat.completions.create(
+                    model = OAI_MODEL,
+                    messages = [
+                        {"role": "system", "content": "You are helpful code reviewer. You explain patches and diffs in great depth using simple terms. You replace the word `patch` with a word `changeset`. You do not include the patch into the answer. You provide only generated description."},
+                        {"role": "user", "content": "Please provide description for the patch considering the short description.\n\n{}\n{}\n".format(json.dumps(pd_com_line), patches)},
+                    ],
+                    temperature=0,
+                )
             recreator_file.write("cat << EOF > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
             recreator_file.write("EOF\n")
