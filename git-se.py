@@ -624,9 +624,16 @@ pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
 recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
 
+recreator_branch = "git-se/{}/recreator".format(first_commit)
+
 recreator_file.write("#!/usr/bin/env bash\n\n")
 recreator_file.write("git branch {} {}\n".format(args.t, first_commit))
 recreator_file.write("git checkout {}\n".format(args.t))
+
+recreator_file.write("RECREATOR_BRANCH=\"{}\"\n".format(recreator_branch))
+recreator_file.write("if [ -n \"$1\" ]; then\n")
+recreator_file.write("    RECREATOR_BRANCH=\"$1\"\n")
+recreator_file.write("fi\n")
 ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use Markdown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
