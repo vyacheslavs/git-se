@@ -662,21 +662,7 @@ ref = repo.head.name
 parents = [repo.head.target]
 git_se_head = repo.create_commit(ref, author, committer, message, tree, parents)
 
-
 sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
-
-# now lets see what's in a diff
-# sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
-# for p in sd:
-#     print("old file:", p.delta.old_file.path, "new file: ", p.delta.new_file.path, "is_binary: ", p.delta.is_binary, "nfiles:", p.delta.nfiles, "similarity:", p.delta.similarity, "status: ", p.delta.status)
-#     print("-----------------")
-#     print(p.data)
-#     print("-----------------")
-# 
-# print(sd.stats.format(format= DiffStatsFormat.FULL | DiffStatsFormat.INCLUDE_SUMMARY, width=120))
-
-
-#print("path: {}".format(repo.workdir))
 
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
