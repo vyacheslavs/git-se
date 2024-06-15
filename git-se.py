@@ -16,6 +16,7 @@ import subprocess
 import pathlib
 
 SE_DIR = ".git-se"
+WORK_DIR = None
 ai_chapter = 1
 ai_file = None
 
@@ -558,6 +559,7 @@ repo_path = args.r
 
 repo = pygit2.Repository(repo_path)
 
+WORK_DIR = repo.workdir
 SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
