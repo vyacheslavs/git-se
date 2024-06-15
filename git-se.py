@@ -583,7 +583,6 @@ first_commit = getattr(args, 'start commit')[0]
 last_commit = args.e
 repo_path = args.r
 
-# delete temp branch
 
 repo = pygit2.Repository(repo_path)
 
@@ -601,6 +600,7 @@ recreator_file.write("git checkout {}\n".format(args.t))
 ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use Markdown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
+    # delete temp branch in case it's already existed
     repo.branches.delete("git-se/" + first_commit)
 except:
     pass
