@@ -16,8 +16,10 @@ import subprocess
 import pathlib
 
 SE_DIR = ".git-se"
+WORK_DIR = None
 ai_chapter = 1
 ai_file = None
+recreator_file = None
 
 class LineType(Enum):
     HEADER = 1
@@ -400,22 +402,25 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
         def apply_patch(self, idx, workdir):
             if self.partially_selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     for line in self.partial_patch:
                         pp.write("{}\n".format(line))
             elif self.selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     text_patch = self.patch.data.decode('utf-8')
                     lines = text_patch.splitlines()
                     for line in lines:
                         pp.write("{}\n".format(line))
-            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/__{}.patch".format(SE_DIR, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+            recreator_file.write("patch -p1 -d {} -i {}/_{}_{}.patch\n".format(workdir, SE_DIR, ai_chapter, idx))
 
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
                 if self.patch.delta.new_file.path != self.patch.delta.old_file.path:
                     idx.add(self.patch.delta.old_file.path)
+                    recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.old_file.path))
                 idx.add(self.patch.delta.new_file.path)
+                recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.new_file.path))
 
     while True:
         # draw menu
@@ -471,9 +476,13 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     if lc[0] != "#":
                         com_line += lc
             logger.debug("comment: {}".format(com_line))
-
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
+
+            recreator_file.write("cat << EOF > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
+            recreator_file.write("{}\n".format(pd_com_line))
+            recreator_file.write("EOF\n")
+
             global ai_chapter
             ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line))
             ai_file.write("```\n")
@@ -491,6 +500,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             # add to index
             for c in cfg:
                 c.add_to_index(index)
+
+            recreator_file.write("git commit -F {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
 
             index.write()
 
@@ -548,6 +559,7 @@ parser.add_argument('start commit', metavar='S', type=str, nargs=1,
 parser.add_argument('-e', metavar='E', type=str,
                     help='end commits', default='HEAD')
 parser.add_argument('-r', metavar='R', type=str, help='repository path', default='.')
+parser.add_argument('-t', metavar='C', type=str, help='recreator branch', default='recreator')
 args = parser.parse_args()
 
 first_commit = getattr(args, 'start commit')[0]
@@ -558,11 +570,17 @@ repo_path = args.r
 
 repo = pygit2.Repository(repo_path)
 
+WORK_DIR = repo.workdir
 SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
+
+recreator_file.write("#!/usr/bin/env bash\n\n")
+recreator_file.write("git branch {} {}\n".format(args.t, first_commit))
+recreator_file.write("git checkout {}\n".format(args.t))
 ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
@@ -570,8 +588,9 @@ try:
 except:
     pass
 
-local_head = repo.revparse_single('HEAD').id
+origin_ref = repo.head
 
+local_head = repo.revparse_single('HEAD').id
 last_commit_obj = repo.revparse_single(last_commit)
 
 first_commit_obj = repo.revparse_single(first_commit)
@@ -609,7 +628,10 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
+recreator_file.close()
 ai_file.close()
+
+repo.checkout(origin_ref)
 
 subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/git-se.txt | copyq copy -".format(SE_DIR)])
 
