@@ -297,6 +297,16 @@ def partially_select(stdscr, diffconfig, logger):
         if key == 32:
             lines_selected[n2] = not lines_selected[n2]
 
+        if key == curses.KEY_RIGHT:
+            sel_type = None
+            while n2 < len(lines):
+                if not sel_type:
+                    sel_type = line_desc[n2].line_type
+                if line_desc[n2].line_type == sel_type:
+                    lines_selected[n2] = not lines_selected[n2]
+                else:
+                    break
+                n2 += 1
     del box
     return generate_patch(lines, lines_selected, line_desc, logger)
 
