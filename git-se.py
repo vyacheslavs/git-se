@@ -549,6 +549,7 @@ parser.add_argument('start commit', metavar='S', type=str, nargs=1,
 parser.add_argument('-e', metavar='E', type=str,
                     help='end commits', default='HEAD')
 parser.add_argument('-r', metavar='R', type=str, help='repository path', default='.')
+parser.add_argument('-t', metavar='C', type=str, help='recreator branch', default='recreator')
 args = parser.parse_args()
 
 first_commit = getattr(args, 'start commit')[0]
