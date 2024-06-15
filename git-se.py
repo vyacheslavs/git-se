@@ -572,9 +572,9 @@ try:
 except:
     pass
 
-local_head = repo.revparse_single('HEAD').id
 origin_ref = repo.head
 
+local_head = repo.revparse_single('HEAD').id
 last_commit_obj = repo.revparse_single(last_commit)
 
 first_commit_obj = repo.revparse_single(first_commit)
