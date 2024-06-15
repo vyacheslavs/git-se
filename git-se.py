@@ -501,6 +501,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             logger.debug("comment: {}".format(com_line))
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
+            pd_com_line_unwrapped = pd_com_line
 
             # ask AI to generate some description
             if oai:
