@@ -525,6 +525,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     logger.debug("gpt: {}".format(response.choices[0].message.content))
                     wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
                     pd_com_line += "\n\n"
+                    pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
                     for lin in wrapped:
                         pd_com_line += lin + "\n"
 
@@ -533,8 +534,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             recreator_file.write("EOF\n")
 
             global ai_chapter
-            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line))
-            ai_file.write("```\n")
+            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line_unwrapped))
+            ai_file.write("```diff\n")
             ai_chapter += 1
             for c in cfg:
                 c.export_patch(ai_file, "")
