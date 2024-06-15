@@ -390,6 +390,18 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partial_patch = partially_select(stdscr, self, self.logger)
             self.partially_selected = self.partial_patch != None
 
+        def squeze(self):
+            out = ""
+            if self.partially_selected:
+                for line in self.partial_patch:
+                    out += line + "\n"
+            elif self.selected:
+                text_patch = self.patch.data.decode('utf-8')
+                lines = text_patch.splitlines()
+                for line in lines:
+                    out += line + "\n"
+            return out
+
         def export_patch(self, fil, prefix):
             if self.partially_selected:
                 for line in self.partial_patch:
