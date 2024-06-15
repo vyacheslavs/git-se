@@ -15,6 +15,7 @@ from enum import Enum
 import subprocess
 import pathlib
 from openai import OpenAI
+import json
 
 SE_DIR = ".git-se"
 WORK_DIR = None
@@ -499,6 +500,14 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
 
+            # ask AI to generate some description
+            if oai:
+
+                patches = ""
+                for c in cfg:
+                    pp = c.squeze()
+                    if len(pp) > 0:
+                        patches += "```\n{}\n```".format(json.dumps(pp));
             recreator_file.write("cat << EOF > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
             recreator_file.write("EOF\n")
