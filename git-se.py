@@ -25,6 +25,7 @@ ai_file = None
 recreator_file = None
 oai = None
 OAI_MODEL = "gpt-3.5-turbo"
+AI_PROMPT_FILENAME = "ai-prompt.txt"
 
 class LineType(Enum):
     HEADER = 1
