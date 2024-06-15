@@ -621,7 +621,7 @@ SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
-ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+ai_file = open("{}/{}".format(SE_DIR, AI_PROMPT_FILENAME), "w")
 recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
 
 recreator_branch = "git-se/{}/recreator".format(first_commit)
