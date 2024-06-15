@@ -14,12 +14,17 @@ from dataclasses import dataclass
 from enum import Enum
 import subprocess
 import pathlib
+from openai import OpenAI
+import json
+import textwrap
 
 SE_DIR = ".git-se"
 WORK_DIR = None
 ai_chapter = 1
 ai_file = None
 recreator_file = None
+oai = None
+OAI_MODEL = "gpt-3.5-turbo"
 
 class LineType(Enum):
     HEADER = 1
@@ -89,7 +94,7 @@ def gen_navigation_map(box, lines, logger):
         out_linedesc.append(Meta(LineType.CO_LINE, 0, 0, 0, 0, 0, "", ""))
 
         out_linedesc[lines_index].src = line
-        current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+),([0-9]+)\s*@@ (.+)", line)
+        current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+),([0-9]+)\s*@@\s*(.*)", line)
         if current_patch_header:
             out_linedesc[lines_index].line_type = LineType.PATCH_HEADER
             last_patch_header_line = lines_index
@@ -390,6 +395,18 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partial_patch = partially_select(stdscr, self, self.logger)
             self.partially_selected = self.partial_patch != None
 
+        def squeze(self):
+            out = ""
+            if self.partially_selected:
+                for line in self.partial_patch:
+                    out += line + "\n"
+            elif self.selected:
+                text_patch = self.patch.data.decode('utf-8')
+                lines = text_patch.splitlines()
+                for line in lines:
+                    out += line + "\n"
+            return out
+
         def export_patch(self, fil, prefix):
             if self.partially_selected:
                 for line in self.partial_patch:
@@ -401,18 +418,23 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     fil.write("{}{}\n".format(prefix, line))
 
         def apply_patch(self, idx, workdir):
+            do_patch = False
             if self.partially_selected:
                 with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     for line in self.partial_patch:
                         pp.write("{}\n".format(line))
+                    do_patch = True
             elif self.selected:
                 with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     text_patch = self.patch.data.decode('utf-8')
                     lines = text_patch.splitlines()
                     for line in lines:
                         pp.write("{}\n".format(line))
-            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
-            recreator_file.write("patch -p1 -d {} -i {}/_{}_{}.patch\n".format(workdir, SE_DIR, ai_chapter, idx))
+                    do_patch = True
+
+            if do_patch:
+                subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+                recreator_file.write("patch -p1 -d {} -i {}/_{}_{}.patch\n".format(workdir, SE_DIR, ai_chapter, idx))
 
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
@@ -478,6 +500,31 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             logger.debug("comment: {}".format(com_line))
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
+
+            # ask AI to generate some description
+            if oai:
+
+                patches = ""
+                for c in cfg:
+                    pp = c.squeze()
+                    if len(pp) > 0:
+                        patches += "```\n{}\n```".format(json.dumps(pp));
+
+                response = oai.chat.completions.create(
+                    model = OAI_MODEL,
+                    messages = [
+                        {"role": "system", "content": "You are helpful code reviewer. You explain patches and diffs in great depth using simple terms. You replace the word `patch` with a word `changeset`. You do not include the patch into the answer. You provide only generated description."},
+                        {"role": "user", "content": "Please provide description for the patch considering the short description.\n\n{}\n{}\n".format(json.dumps(pd_com_line), patches)},
+                    ],
+                    temperature=0,
+                )
+                if response and len(response.choices)>0:
+                    # need to format output line (max of 60 chars)
+                    logger.debug("gpt: {}".format(response.choices[0].message.content))
+                    wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
+                    pd_com_line += "\n\n"
+                    for lin in wrapped:
+                        pd_com_line += lin + "\n"
 
             recreator_file.write("cat << EOF > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
@@ -566,7 +613,6 @@ first_commit = getattr(args, 'start commit')[0]
 last_commit = args.e
 repo_path = args.r
 
-# delete temp branch
 
 repo = pygit2.Repository(repo_path)
 
@@ -581,12 +627,18 @@ recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
 recreator_file.write("#!/usr/bin/env bash\n\n")
 recreator_file.write("git branch {} {}\n".format(args.t, first_commit))
 recreator_file.write("git checkout {}\n".format(args.t))
-ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
+ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use Markdown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
+    # delete temp branch in case it's already existed
     repo.branches.delete("git-se/" + first_commit)
 except:
     pass
+
+with open("{}/open-ai.token".format(SE_DIR), "r") as oai_file:
+    tok = oai_file.readline()
+    tok = tok.strip()
+    oai = OpenAI(api_key = tok)
 
 origin_ref = repo.head
 
