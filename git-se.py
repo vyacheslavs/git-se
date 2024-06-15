@@ -25,6 +25,7 @@ ai_file = None
 recreator_file = None
 oai = None
 OAI_MODEL = "gpt-3.5-turbo"
+AI_PROMPT_FILENAME = "ai-prompt.txt"
 
 class LineType(Enum):
     HEADER = 1
@@ -500,6 +501,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             logger.debug("comment: {}".format(com_line))
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
+            pd_com_line_unwrapped = pd_com_line
 
             # ask AI to generate some description
             if oai:
@@ -523,6 +525,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     logger.debug("gpt: {}".format(response.choices[0].message.content))
                     wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
                     pd_com_line += "\n\n"
+                    pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
                     for lin in wrapped:
                         pd_com_line += lin + "\n"
 
@@ -531,8 +534,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             recreator_file.write("EOF\n")
 
             global ai_chapter
-            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line))
-            ai_file.write("```\n")
+            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line_unwrapped))
+            ai_file.write("```diff\n")
             ai_chapter += 1
             for c in cfg:
                 c.export_patch(ai_file, "")
@@ -620,7 +623,7 @@ SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
-ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+ai_file = open("{}/{}".format(SE_DIR, AI_PROMPT_FILENAME), "w")
 recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
 
 recreator_branch = "git-se/{}/recreator".format(first_commit)
@@ -678,5 +681,5 @@ ai_file.close()
 
 repo.checkout(origin_ref)
 
-subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/git-se.txt | copyq copy -".format(SE_DIR)])
+subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/{} | copyq copy -".format(SE_DIR, AI_PROMPT_FILENAME)])
 
