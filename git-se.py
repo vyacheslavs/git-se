@@ -14,12 +14,15 @@ from dataclasses import dataclass
 from enum import Enum
 import subprocess
 import pathlib
+from openai import OpenAI
 
 SE_DIR = ".git-se"
 WORK_DIR = None
 ai_chapter = 1
 ai_file = None
 recreator_file = None
+oai = None
+OAI_MODEL = "gpt-3.5-turbo"
 
 class LineType(Enum):
     HEADER = 1
@@ -604,6 +607,11 @@ try:
     repo.branches.delete("git-se/" + first_commit)
 except:
     pass
+
+with open("{}/open-ai.token".format(SE_DIR), "r") as oai_file:
+    tok = oai_file.readline()
+    tok = tok.strip()
+    oai = OpenAI(api_key = tok)
 
 origin_ref = repo.head
 
