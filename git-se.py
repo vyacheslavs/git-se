@@ -573,6 +573,7 @@ except:
     pass
 
 local_head = repo.revparse_single('HEAD').id
+origin_ref = repo.head
 
 last_commit_obj = repo.revparse_single(last_commit)
 
@@ -612,6 +613,8 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
 ai_file.close()
+
+repo.checkout(origin_ref)
 
 subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/git-se.txt | copyq copy -".format(SE_DIR)])
 
