@@ -89,7 +89,7 @@ def gen_navigation_map(box, lines, logger):
         out_linedesc.append(Meta(LineType.CO_LINE, 0, 0, 0, 0, 0, "", ""))
 
         out_linedesc[lines_index].src = line
-        current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+),([0-9]+)\s*@@ (.+)", line)
+        current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+),([0-9]+)\s*@@\s*(.*)", line)
         if current_patch_header:
             out_linedesc[lines_index].line_type = LineType.PATCH_HEADER
             last_patch_header_line = lines_index
