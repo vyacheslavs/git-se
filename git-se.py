@@ -19,6 +19,7 @@ SE_DIR = ".git-se"
 WORK_DIR = None
 ai_chapter = 1
 ai_file = None
+recreator_file = None
 
 class LineType(Enum):
     HEADER = 1
@@ -566,6 +567,11 @@ SE_DIR = "{}/{}".format(repo.workdir, SE_DIR)
 pathlib.Path(SE_DIR).mkdir(parents=True, exist_ok=True)
 
 ai_file = open("{}/git-se.txt".format(SE_DIR), "w")
+recreator_file = open("{}/git-se.recreator.sh".format(SE_DIR), "w")
+
+recreator_file.write("#!/usr/bin/env bash\n\n")
+recreator_file.write("git branch {} {}\n".format(args.t, first_commit))
+recreator_file.write("git checkout {}\n".format(args.t))
 ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use mardown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
 
 try:
@@ -613,6 +619,7 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
+recreator_file.close()
 ai_file.close()
 
 repo.checkout(origin_ref)
