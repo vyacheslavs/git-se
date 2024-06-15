@@ -413,18 +413,23 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     fil.write("{}{}\n".format(prefix, line))
 
         def apply_patch(self, idx, workdir):
+            do_patch = False
             if self.partially_selected:
                 with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     for line in self.partial_patch:
                         pp.write("{}\n".format(line))
+                    do_patch = True
             elif self.selected:
                 with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     text_patch = self.patch.data.decode('utf-8')
                     lines = text_patch.splitlines()
                     for line in lines:
                         pp.write("{}\n".format(line))
-            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
-            recreator_file.write("patch -p1 -d {} -i {}/_{}_{}.patch\n".format(workdir, SE_DIR, ai_chapter, idx))
+                    do_patch = True
+
+            if do_patch:
+                subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+                recreator_file.write("patch -p1 -d {} -i {}/_{}_{}.patch\n".format(workdir, SE_DIR, ai_chapter, idx))
 
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
