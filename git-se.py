@@ -679,5 +679,5 @@ ai_file.close()
 
 repo.checkout(origin_ref)
 
-subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/git-se.txt | copyq copy -".format(SE_DIR)])
+subprocess.Popen(["/usr/bin/env", "bash", "-c", "cat {}/{} | copyq copy -".format(SE_DIR, AI_PROMPT_FILENAME)])
 
