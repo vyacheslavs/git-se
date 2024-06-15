@@ -16,6 +16,7 @@ import subprocess
 import pathlib
 from openai import OpenAI
 import json
+import textwrap
 
 SE_DIR = ".git-se"
 WORK_DIR = None
@@ -517,6 +518,14 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     ],
                     temperature=0,
                 )
+                if response and len(response.choices)>0:
+                    # need to format output line (max of 60 chars)
+                    logger.debug("gpt: {}".format(response.choices[0].message.content))
+                    wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
+                    pd_com_line += "\n\n"
+                    for lin in wrapped:
+                        pd_com_line += lin + "\n"
+
             recreator_file.write("cat << EOF > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
             recreator_file.write("EOF\n")
