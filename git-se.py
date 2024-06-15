@@ -402,16 +402,16 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
         def apply_patch(self, idx, workdir):
             if self.partially_selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     for line in self.partial_patch:
                         pp.write("{}\n".format(line))
             elif self.selected:
-                with open("{}/__{}.patch".format(SE_DIR, idx), "w") as pp:
+                with open("{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx), "w") as pp:
                     text_patch = self.patch.data.decode('utf-8')
                     lines = text_patch.splitlines()
                     for line in lines:
                         pp.write("{}\n".format(line))
-            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/__{}.patch".format(SE_DIR, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+            subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
