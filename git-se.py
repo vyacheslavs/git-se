@@ -307,6 +307,18 @@ def partially_select(stdscr, diffconfig, logger):
                 else:
                     break
                 n2 += 1
+
+        if key == curses.KEY_LEFT:
+            sel_type = None
+            while n2 > 0:
+                if not sel_type:
+                    sel_type = line_desc[n2].line_type
+                if line_desc[n2].line_type == sel_type:
+                    lines_selected[n2] = not lines_selected[n2]
+                else:
+                    break
+                n2 -= 1
+
     del box
     return generate_patch(lines, lines_selected, line_desc, logger)
 
