@@ -532,7 +532,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
             global ai_chapter
             ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line))
-            ai_file.write("```\n")
+            ai_file.write("```diff\n")
             ai_chapter += 1
             for c in cfg:
                 c.export_patch(ai_file, "")
