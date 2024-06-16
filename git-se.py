@@ -168,10 +168,13 @@ def generate_patch(lines, lines_selected, line_desc, logger):
                     if out_patch[p][0] == '+' or out_patch[p][0] == '-':
                         break
                     uc += 1
-                logger.debug("uc = {}, remove from: {} to {}, skipped: {}, skipped_prev: {}".format(uc,last_patch_header, last_patch_header+uc-2, skipped, skipped_prev))
-                del out_patch[last_patch_header:last_patch_header+uc-3]
-                out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc-3, len_plus - (uc-3), active_patch_header.line2 + uc-3 + skipped_prev, len_minus - (uc-3), active_patch_header.line)
-                patch_line_index -= uc-3
+                if uc > 3:
+                    uc = uc - 3
+                logger.debug("uc = {}, remove from: {} to {}, skipped: {}, skipped_prev: {}".format(uc,last_patch_header, last_patch_header+uc+1, skipped, skipped_prev))
+                if uc > 0:
+                    del out_patch[last_patch_header:last_patch_header+uc]
+                out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc, len_plus - uc, active_patch_header.line2 + uc + skipped_prev, len_minus - uc, active_patch_header.line)
+                patch_line_index -= uc
                 skipped_prev = skipped
                 hunks += 1
 
