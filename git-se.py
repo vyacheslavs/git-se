@@ -169,10 +169,9 @@ def generate_patch(lines, lines_selected, line_desc, logger):
                         break
                     uc += 1
                 if uc > 3:
+                    del out_patch[last_patch_header:last_patch_header + uc - 3]
                     uc = uc - 3
                 logger.debug("uc = {}, remove from: {} to {}, skipped: {}, skipped_prev: {}".format(uc,last_patch_header, last_patch_header+uc+1, skipped, skipped_prev))
-                if uc > 0:
-                    del out_patch[last_patch_header:last_patch_header+uc]
                 out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc, len_plus - uc, active_patch_header.line2 + uc + skipped_prev, len_minus - uc, active_patch_header.line)
                 patch_line_index -= uc
                 skipped_prev = skipped
@@ -230,9 +229,9 @@ def generate_patch(lines, lines_selected, line_desc, logger):
                 break
             uc += 1
         if uc > 3:
+            del out_patch[last_patch_header:last_patch_header + uc - 3]
             uc = uc - 3
         logger.debug("LAST: uc = {}".format(uc))
-        del out_patch[last_patch_header:last_patch_header+uc]
         out_patch[last_patch_header] = "@@ -{},{} +{},{} @@ {}".format(active_patch_header.line1 + uc, len_plus - (uc), active_patch_header.line2 + uc + skipped_prev, len_minus - (uc), active_patch_header.line)
         hunks += 1
 
