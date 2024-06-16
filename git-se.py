@@ -456,6 +456,9 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             return out
 
         def export_patch(self, fil, prefix):
+            # do not do anything if it's binary
+            if self.patch.delta.is_binary:
+                return
             if self.partially_selected:
                 for line in self.partial_patch:
                     fil.write("{}{}\n".format(prefix, line))
