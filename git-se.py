@@ -440,6 +440,10 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partially_selected = self.partial_patch != None
 
         def squeze(self):
+            # do not do anything if it's binary
+            if self.patch.delta.is_binary:
+                return ""
+
             out = ""
             if self.partially_selected:
                 for line in self.partial_patch:
