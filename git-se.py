@@ -562,22 +562,23 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     if len(pp) > 0:
                         patches += "```\n{}\n```".format(json.dumps(pp));
 
-                response = oai.chat.completions.create(
-                    model = OAI_MODEL,
-                    messages = [
-                        {"role": "system", "content": "You are helpful code reviewer. You explain patches and diffs in great depth using simple terms. You replace the word `patch` with a word `changeset`. You do not include the patch into the answer. You provide only generated description."},
-                        {"role": "user", "content": "Please provide description for the patch considering the short description.\n\n{}\n{}\n".format(json.dumps(pd_com_line), patches)},
-                    ],
-                    temperature=0,
-                )
-                if response and len(response.choices)>0:
-                    # need to format output line (max of 60 chars)
-                    logger.debug("gpt: {}".format(response.choices[0].message.content))
-                    wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
-                    pd_com_line += "\n\n"
-                    pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
-                    for lin in wrapped:
-                        pd_com_line += lin + "\n"
+                if len(patches) > 0:
+                    response = oai.chat.completions.create(
+                        model = OAI_MODEL,
+                        messages = [
+                            {"role": "system", "content": "You are helpful code reviewer. You explain patches and diffs in great depth using simple terms. You replace the word `patch` with a word `changeset`. You do not include the patch into the answer. You provide only generated description."},
+                            {"role": "user", "content": "Please provide description for the patch considering the short description.\n\n{}\n{}\n".format(json.dumps(pd_com_line), patches)},
+                        ],
+                        temperature=0,
+                    )
+                    if response and len(response.choices)>0:
+                        # need to format output line (max of 60 chars)
+                        logger.debug("gpt: {}".format(response.choices[0].message.content))
+                        wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
+                        pd_com_line += "\n\n"
+                        pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
+                        for lin in wrapped:
+                            pd_com_line += lin + "\n"
 
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
