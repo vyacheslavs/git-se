@@ -440,6 +440,10 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partially_selected = self.partial_patch != None
 
         def squeze(self):
+            # do not do anything if it's binary
+            if self.patch.delta.is_binary:
+                return ""
+
             out = ""
             if self.partially_selected:
                 for line in self.partial_patch:
@@ -452,6 +456,9 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             return out
 
         def export_patch(self, fil, prefix):
+            # do not do anything if it's binary
+            if self.patch.delta.is_binary:
+                return
             if self.partially_selected:
                 for line in self.partial_patch:
                     fil.write("{}{}\n".format(prefix, line))
@@ -477,8 +484,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     do_patch = True
 
             if do_patch:
-                subprocess.run(["patch", "-p1", "-d", workdir, "-i" , "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
-                recreator_file.write("patch -p1 -d {} -i {}/_{}_{}.patch\n".format(workdir, SE_DIR, ai_chapter, idx))
+                subprocess.run(["git", "apply", "-p1", "{}/_{}_{}.patch".format(SE_DIR, ai_chapter, idx)], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+                recreator_file.write("git apply -p1 {}/_{}_{}.patch\n".format(SE_DIR, ai_chapter, idx))
 
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
@@ -555,22 +562,23 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     if len(pp) > 0:
                         patches += "```\n{}\n```".format(json.dumps(pp));
 
-                response = oai.chat.completions.create(
-                    model = OAI_MODEL,
-                    messages = [
-                        {"role": "system", "content": "You are helpful code reviewer. You explain patches and diffs in great depth using simple terms. You replace the word `patch` with a word `changeset`. You do not include the patch into the answer. You provide only generated description."},
-                        {"role": "user", "content": "Please provide description for the patch considering the short description.\n\n{}\n{}\n".format(json.dumps(pd_com_line), patches)},
-                    ],
-                    temperature=0,
-                )
-                if response and len(response.choices)>0:
-                    # need to format output line (max of 60 chars)
-                    logger.debug("gpt: {}".format(response.choices[0].message.content))
-                    wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
-                    pd_com_line += "\n\n"
-                    pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
-                    for lin in wrapped:
-                        pd_com_line += lin + "\n"
+                if len(patches) > 0:
+                    response = oai.chat.completions.create(
+                        model = OAI_MODEL,
+                        messages = [
+                            {"role": "system", "content": "You are helpful code reviewer. You explain patches and diffs in great depth using simple terms. You replace the word `patch` with a word `changeset`. You do not include the patch into the answer. You provide only generated description."},
+                            {"role": "user", "content": "Please provide description for the patch considering the short description.\n\n{}\n{}\n".format(json.dumps(pd_com_line), patches)},
+                        ],
+                        temperature=0,
+                    )
+                    if response and len(response.choices)>0:
+                        # need to format output line (max of 60 chars)
+                        logger.debug("gpt: {}".format(response.choices[0].message.content))
+                        wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
+                        pd_com_line += "\n\n"
+                        pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
+                        for lin in wrapped:
+                            pd_com_line += lin + "\n"
 
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
@@ -677,7 +685,8 @@ recreator_file.write("RECREATOR_BRANCH=\"{}\"\n".format(recreator_branch))
 recreator_file.write("if [ -n \"$1\" ]; then\n")
 recreator_file.write("    RECREATOR_BRANCH=\"$1\"\n")
 recreator_file.write("fi\n")
-recreator_file.write("git branch -D \"${RECREATOR_BRANCH}\"\n")
+recreator_file.write(f"pushd {WORK_DIR}\n")
+recreator_file.write("git branch -q -D \"${RECREATOR_BRANCH}\"\n")
 recreator_file.write("git branch \"${{RECREATOR_BRANCH}}\" {}\n".format(first_commit))
 recreator_file.write("git checkout \"${RECREATOR_BRANCH}\"\n")
 ai_file.write("I will provide patches below with short text describing this patches. Please describe the patches as detailed as you can considering the short description. Use Markdown as output format. Patches must remain as it was.  Insert the generated description before patches. Use monospaced font for output. Use simple words for description.\n")
@@ -719,6 +728,7 @@ sd = repo.diff(first_commit_obj, git_se_head, flags=DiffOption.SHOW_BINARY)
 
 wrapper(main, sd, repo, first_commit, git_se_head, local_head)
 
+recreator_file.write("popd\n")
 recreator_file.close()
 ai_file.close()
 
