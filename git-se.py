@@ -107,6 +107,19 @@ def gen_navigation_map(box, lines, logger):
             out_linedesc[lines_index].len2 = int(current_patch_header.groups()[3]);
             out_linedesc[lines_index].line = current_patch_header.groups()[4];
             logger.debug("patch header: {}".format(str(out_linedesc[lines_index])))
+        if not current_patch_header:
+            current_patch_header = re.search(r"@@\s*\-([0-9]+),([0-9]+)\s+\+([0-9]+)\s*@@\s*(.*)", line)
+            if current_patch_header:
+                out_linedesc[lines_index].line_type = LineType.PATCH_HEADER
+                last_patch_header_line = lines_index
+                header_mode = False
+                pallete = (30, curses.A_BOLD)
+                out_linedesc[lines_index].line1 = int(current_patch_header.groups()[0]);
+                out_linedesc[lines_index].len1 = int(current_patch_header.groups()[1]);
+                out_linedesc[lines_index].line2 = int(current_patch_header.groups()[2]);
+                out_linedesc[lines_index].len2 = int(current_patch_header.groups()[2]);
+                out_linedesc[lines_index].line = current_patch_header.groups()[3];
+                logger.debug("patch header (type 2): {}".format(str(out_linedesc[lines_index])))
 
         if header_mode:
             pallete = (24, curses.A_BOLD)
