@@ -415,7 +415,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.selected = not self.selected
 
         def select_ex(self):
-            if self.patch.delta.status != DeltaStatus.MODIFIED:
+            if self.patch.delta.status != DeltaStatus.MODIFIED and self.patch.delta.status != DeltaStatus.ADDED:
                 return
             if self.patch.delta.is_binary:
                 return
