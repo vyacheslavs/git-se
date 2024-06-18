@@ -579,6 +579,16 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                         pd_com_line += "\n\n"
                         pd_com_line += response.choices[0].message.content
 
+            if not skip_generative_AI:
+                with open(SE_DIR + "/git-se._stage_desc.txt", "w") as staged:
+                    staged.write("# Please review generated comments by AI. Lines starting with # will be ignored\n")
+                    staged.write("#\n")
+                    for c in cfg:
+                        staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
+                        staged.write("#\n")
+                        c.export_patch(staged, "# ")
+                    staged.write("\n")
+                    staged.write(f"{pd_com_line}\n")
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
             recreator_file.write("EOF\n")
