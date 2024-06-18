@@ -591,8 +591,34 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     staged.write(f"{pd_com_line}\n")
 
                 subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
+
+                com_line = ""
+                with open(SE_DIR + "/git-se._stage_desc.txt", "r") as staged:
+                    while lc := staged.readline():
+                        if lc[0] != "#":
+                            com_line += lc
+
+                pd_com_line = com_line.strip(" \t\n")
+
+
+            pd_com_line_unwrapped = pd_com_line
+            # now split pd_com_line into paragraphs
+            p_num = 0
+            pd_com_wrapped = ""
+            paragraphs = pd_com_line.split('\n')
+            for p_line in paragraphs:
+                p_line_c = p_line.strip(" \t\n")
+                if len(p_line_c) > 0:
+                    if p_num == 0:
+                        pd_com_wrapped += p_line_c + "\n"
+                    else:
+                        pd_com_wrapped += "\n"
+                        pd_com_wrapped += "\n".join(textwrap.wrap(p_line_c, 80, break_long_words=False, break_on_hyphens=False))
+                        pd_com_wrapped += "\n"
+                    p_num += 1
+
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
-            recreator_file.write("{}\n".format(pd_com_line))
+            recreator_file.write("{}\n".format(pd_com_wrapped))
             recreator_file.write("EOF\n")
 
             global ai_chapter
