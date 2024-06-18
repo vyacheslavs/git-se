@@ -495,6 +495,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 idx.add(self.patch.delta.new_file.path)
                 recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.new_file.path))
 
+    quit_attempt = 0
     while True:
         # draw menu
         start_oft = 4
@@ -516,7 +517,9 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
         key = stdscr.getch()
 
         if key == curses.KEY_F10 or key == 113:
-            break
+            quit_attempt += 1
+            if quit_attempt > 2:
+                break
 
         if key == curses.KEY_F2:
             if not ready_to_stage(cfg):
