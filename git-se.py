@@ -576,11 +576,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     if response and len(response.choices)>0:
                         # need to format output line (max of 60 chars)
                         logger.debug("gpt: {}".format(response.choices[0].message.content))
-                        wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
                         pd_com_line += "\n\n"
-                        pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
-                        for lin in wrapped:
-                            pd_com_line += lin + "\n"
+                        pd_com_line += response.choices[0].message.content
 
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
