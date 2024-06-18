@@ -525,6 +525,7 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
             with open(SE_DIR + "/git-se._stage_desc.txt", "w") as staged:
                 staged.write("# Please describe the stage in view words, lines starting with # will be ignored\n")
+                staged.write("# Use #[no-ai] tag to skip generative AI comments\n")
                 staged.write("#\n")
                 for c in cfg:
                     staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
@@ -543,18 +544,21 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 cfg[c].apply_patch(c, repo.workdir)
 
             # read text message
+            skip_generative_AI = False
             com_line = ""
             with open(SE_DIR + "/git-se._stage_desc.txt", "r") as staged:
                 while lc := staged.readline():
                     if lc[0] != "#":
                         com_line += lc
+                    elif lc.startswith("#[no-ai]"):
+                        skip_generative_AI = True
             logger.debug("comment: {}".format(com_line))
             pd_com_line = com_line
             pd_com_line = pd_com_line.strip(" \t\n")
             pd_com_line_unwrapped = pd_com_line
 
             # ask AI to generate some description
-            if oai:
+            if oai and not skip_generative_AI:
 
                 patches = ""
                 for c in cfg:
