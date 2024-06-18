@@ -552,10 +552,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                         com_line += lc
                     elif lc.startswith("#[no-ai]"):
                         skip_generative_AI = True
-            logger.debug("comment: {}".format(com_line))
-            pd_com_line = com_line
-            pd_com_line = pd_com_line.strip(" \t\n")
-            pd_com_line_unwrapped = pd_com_line
+            pd_com_line = com_line.strip(" \t\n")
+            logger.debug(f"comment: {pd_com_line}")
 
             # ask AI to generate some description
             if oai and not skip_generative_AI:
@@ -578,14 +576,49 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                     if response and len(response.choices)>0:
                         # need to format output line (max of 60 chars)
                         logger.debug("gpt: {}".format(response.choices[0].message.content))
-                        wrapped = textwrap.wrap(response.choices[0].message.content, 60, break_long_words=False)
                         pd_com_line += "\n\n"
-                        pd_com_line_unwrapped += "\n\n{}\n".format(response.choices[0].message.content)
-                        for lin in wrapped:
-                            pd_com_line += lin + "\n"
+                        pd_com_line += response.choices[0].message.content
+
+            if not skip_generative_AI:
+                with open(SE_DIR + "/git-se._stage_desc.txt", "w") as staged:
+                    staged.write("# Please review generated comments by AI. Lines starting with # will be ignored\n")
+                    staged.write("#\n")
+                    for c in cfg:
+                        staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
+                        staged.write("#\n")
+                        c.export_patch(staged, "# ")
+                    staged.write("\n")
+                    staged.write(f"{pd_com_line}\n")
+
+                subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
+
+                com_line = ""
+                with open(SE_DIR + "/git-se._stage_desc.txt", "r") as staged:
+                    while lc := staged.readline():
+                        if lc[0] != "#":
+                            com_line += lc
+
+                pd_com_line = com_line.strip(" \t\n")
+
+
+            pd_com_line_unwrapped = pd_com_line
+            # now split pd_com_line into paragraphs
+            p_num = 0
+            pd_com_wrapped = ""
+            paragraphs = pd_com_line.split('\n')
+            for p_line in paragraphs:
+                p_line_c = p_line.strip(" \t\n")
+                if len(p_line_c) > 0:
+                    if p_num == 0:
+                        pd_com_wrapped += p_line_c + "\n"
+                    else:
+                        pd_com_wrapped += "\n"
+                        pd_com_wrapped += "\n".join(textwrap.wrap(p_line_c, 80, break_long_words=False, break_on_hyphens=False))
+                        pd_com_wrapped += "\n"
+                    p_num += 1
 
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
-            recreator_file.write("{}\n".format(pd_com_line))
+            recreator_file.write("{}\n".format(pd_com_wrapped))
             recreator_file.write("EOF\n")
 
             global ai_chapter
