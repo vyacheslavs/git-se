@@ -589,6 +589,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                         c.export_patch(staged, "# ")
                     staged.write("\n")
                     staged.write(f"{pd_com_line}\n")
+
+                subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
             recreator_file.write("cat << 'EOF' > {}/git-se._stage_desc_clean.txt\n".format(SE_DIR))
             recreator_file.write("{}\n".format(pd_com_line))
             recreator_file.write("EOF\n")
