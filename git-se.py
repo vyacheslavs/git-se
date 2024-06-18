@@ -552,10 +552,8 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                         com_line += lc
                     elif lc.startswith("#[no-ai]"):
                         skip_generative_AI = True
-            logger.debug("comment: {}".format(com_line))
-            pd_com_line = com_line
-            pd_com_line = pd_com_line.strip(" \t\n")
-            pd_com_line_unwrapped = pd_com_line
+            pd_com_line = com_line.strip(" \t\n")
+            logger.debug(f"comment: {pd_com_line}")
 
             # ask AI to generate some description
             if oai and not skip_generative_AI:
