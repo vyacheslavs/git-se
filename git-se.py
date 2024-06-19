@@ -543,9 +543,10 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 staged.write("# Use #[no-ai] tag to skip generative AI comments\n")
                 staged.write("#\n")
                 for c in cfg:
-                    staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
-                    staged.write("#\n")
-                    c.export_patch(staged, "# ")
+                    is_partial, pp = c.squeze("# ")
+                    pp = pp.strip(" \t\n")
+                    if len(pp) > 0:
+                        staged.write(f"{pp}\n")
                 staged.write("\n")
 
             subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
