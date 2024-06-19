@@ -439,21 +439,26 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partial_patch = partially_select(stdscr, self, self.logger)
             self.partially_selected = self.partial_patch != None
 
-        def squeze(self):
+        def squeze(self, prefix=""):
             # do not do anything if it's binary
-            if self.patch.delta.is_binary:
-                return ""
-
+            if self.patch.delta.is_binary and self.partially_selected:
+                return (False, "")
+            is_partial = True
             out = ""
+
             if self.partially_selected:
+                self.logger.debug(f"{self.patch.delta.new_file.path} is partially selected and delta status = {self.patch.delta.status} for {self.patch.delta.new_file.path}")
                 for line in self.partial_patch:
-                    out += line + "\n"
+                    out += prefix + line + "\n"
             elif self.selected:
-                text_patch = self.patch.data.decode('utf-8')
-                lines = text_patch.splitlines()
-                for line in lines:
-                    out += line + "\n"
-            return out
+                self.logger.debug(f"{self.patch.delta.new_file.path} is fully selected and delta status = {self.patch.delta.status} for {self.patch.delta.new_file.path}")
+                is_partial = False
+                if self.patch.delta.status == DeltaStatus.DELETED:
+                    out += prefix + " [-] " + self.patch.delta.new_file.path
+                else:
+                    out += prefix + " [+] " + self.patch.delta.new_file.path
+            self.logger.debug(f"output = [{out}]")
+            return (is_partial, out)
 
         def export_patch(self, fil, prefix):
             # do not do anything if it's binary
@@ -490,9 +495,16 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
                 if self.patch.delta.new_file.path != self.patch.delta.old_file.path:
-                    idx.add(self.patch.delta.old_file.path)
+                    if self.patch.delta.status == DeltaStatus.DELETED:
+                        idx.remove(self.patch.delta.old_file.path)
+                    else:
+                        idx.add(self.patch.delta.old_file.path)
                     recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.old_file.path))
-                idx.add(self.patch.delta.new_file.path)
+                self.logger.debug(f"delta status = {self.patch.delta.status} for {self.patch.delta.new_file.path}")
+                if self.patch.delta.status == DeltaStatus.DELETED:
+                    idx.remove(self.patch.delta.new_file.path)
+                else:
+                    idx.add(self.patch.delta.new_file.path)
                 recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.new_file.path))
 
     quit_attempt = 0
@@ -531,9 +543,10 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 staged.write("# Use #[no-ai] tag to skip generative AI comments\n")
                 staged.write("#\n")
                 for c in cfg:
-                    staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
-                    staged.write("#\n")
-                    c.export_patch(staged, "# ")
+                    is_partial, pp = c.squeze("# ")
+                    pp = pp.strip(" \t\n")
+                    if len(pp) > 0:
+                        staged.write(f"{pp}\n")
                 staged.write("\n")
 
             subprocess.run(["nano", SE_DIR + "/git-se._stage_desc.txt"])
@@ -563,9 +576,15 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
                 patches = ""
                 for c in cfg:
-                    pp = c.squeze()
+                    is_partial, pp = c.squeze()
+                    pp = pp.strip(" \t\n")
                     if len(pp) > 0:
-                        patches += "```\n{}\n```".format(json.dumps(pp));
+                        if is_partial:
+                            patches += "```diff\n{}\n```".format(json.dumps(pp));
+                        else:
+                            patches += "```{}```\n".format(json.dumps(pp));
+
+                logger.debug(f"sending patches: {patches}")
 
                 if len(patches) > 0:
                     response = oai.chat.completions.create(
@@ -586,10 +605,13 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
                 with open(SE_DIR + "/git-se._stage_desc.txt", "w") as staged:
                     staged.write("# Please review generated comments by AI. Lines starting with # will be ignored\n")
                     staged.write("#\n")
+
                     for c in cfg:
-                        staged.write("# [{}] {}\n".format(c.marking(), c.patch.delta.new_file.path))
-                        staged.write("#\n")
-                        c.export_patch(staged, "# ")
+                        is_partial, pp = c.squeze("# ")
+                        pp = pp.strip(" \t\n")
+                        if len(pp) > 0:
+                            staged.write(f"{pp}\n")
+
                     staged.write("\n")
                     staged.write(f"{pd_com_line}\n")
 
@@ -625,14 +647,29 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             recreator_file.write("EOF\n")
 
             global ai_chapter
-            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line_unwrapped))
-            ai_file.write("```diff\n")
+            ai_file.write("\n## {}. {}\n\n".format(ai_chapter, pd_com_line_unwrapped))
+
             ai_chapter += 1
             for c in cfg:
-                c.export_patch(ai_file, "")
-            ai_file.write("\n")
+                is_partial, pp = c.squeze()
+                pp = pp.strip(" \t\n")
+                if len(pp)>0 and is_partial:
+                    ai_file.write("```diff\n")
+                    ai_file.write(f"{pp}\n")
+                    ai_file.write("```\n")
+            all_non_partials = ""
+            for c in cfg:
+                is_partial, pp = c.squeze()
+                pp = pp.strip(" \t\n")
+                if len(pp)>0 and not is_partial:
+                    all_non_partials += pp + "\n"
 
-            ai_file.write("```\n")
+            if len(all_non_partials)>0:
+                ai_file.write("\n### File changes\n```\n")
+                ai_file.write(f"{all_non_partials}\n")
+                ai_file.write("```\n")
+
+            ai_file.write("\n")
 
             index = repo.index
             author = pygit2.Signature('Git Se', 'gitse@gitse.se')
