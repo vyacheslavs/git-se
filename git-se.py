@@ -495,9 +495,16 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
         def add_to_index(self, idx):
             if self.partially_selected or self.selected:
                 if self.patch.delta.new_file.path != self.patch.delta.old_file.path:
-                    idx.add(self.patch.delta.old_file.path)
+                    if self.patch.delta.status == DeltaStatus.DELETED:
+                        idx.remove(self.patch.delta.old_file.path)
+                    else:
+                        idx.add(self.patch.delta.old_file.path)
                     recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.old_file.path))
-                idx.add(self.patch.delta.new_file.path)
+                self.logger.debug(f"delta status = {self.patch.delta.status} for {self.patch.delta.new_file.path}")
+                if self.patch.delta.status == DeltaStatus.DELETED:
+                    idx.remove(self.patch.delta.new_file.path)
+                else:
+                    idx.add(self.patch.delta.new_file.path)
                 recreator_file.write("git add {}/{}\n".format(WORK_DIR, self.patch.delta.new_file.path))
 
     quit_attempt = 0
