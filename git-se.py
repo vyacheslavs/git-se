@@ -647,14 +647,29 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             recreator_file.write("EOF\n")
 
             global ai_chapter
-            ai_file.write("\n## {}. {}\n".format(ai_chapter, pd_com_line_unwrapped))
-            ai_file.write("```diff\n")
+            ai_file.write("\n## {}. {}\n\n".format(ai_chapter, pd_com_line_unwrapped))
+
             ai_chapter += 1
             for c in cfg:
-                c.export_patch(ai_file, "")
-            ai_file.write("\n")
+                is_partial, pp = c.squeze()
+                pp = pp.strip(" \t\n")
+                if len(pp)>0 and is_partial:
+                    ai_file.write("```diff\n")
+                    ai_file.write(f"{pp}\n")
+                    ai_file.write("```\n")
+            all_non_partials = ""
+            for c in cfg:
+                is_partial, pp = c.squeze()
+                pp = pp.strip(" \t\n")
+                if len(pp)>0 and not is_partial:
+                    all_non_partials += pp + "\n"
 
-            ai_file.write("```\n")
+            if len(all_non_partials)>0:
+                ai_file.write("\n### File changes\n```\n")
+                ai_file.write(f"{all_non_partials}\n")
+                ai_file.write("```\n")
+
+            ai_file.write("\n")
 
             index = repo.index
             author = pygit2.Signature('Git Se', 'gitse@gitse.se')
