@@ -576,9 +576,15 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
 
                 patches = ""
                 for c in cfg:
-                    pp = c.squeze()
+                    is_partial, pp = c.squeze()
+                    pp = pp.strip(" \t\n")
                     if len(pp) > 0:
-                        patches += "```\n{}\n```".format(json.dumps(pp));
+                        if is_partial:
+                            patches += "```diff\n{}\n```".format(json.dumps(pp));
+                        else:
+                            patches += "```{}```\n".format(json.dumps(pp));
+
+                logger.debug(f"sending patches: {patches}")
 
                 if len(patches) > 0:
                     response = oai.chat.completions.create(
