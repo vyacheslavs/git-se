@@ -439,21 +439,26 @@ def main(stdscr, sd, repo, first_commit, git_se_head, local_head):
             self.partial_patch = partially_select(stdscr, self, self.logger)
             self.partially_selected = self.partial_patch != None
 
-        def squeze(self):
+        def squeze(self, prefix=""):
             # do not do anything if it's binary
-            if self.patch.delta.is_binary:
-                return ""
-
+            if self.patch.delta.is_binary and self.partially_selected:
+                return (False, "")
+            is_partial = True
             out = ""
+
             if self.partially_selected:
+                self.logger.debug(f"{self.patch.delta.new_file.path} is partially selected and delta status = {self.patch.delta.status} for {self.patch.delta.new_file.path}")
                 for line in self.partial_patch:
-                    out += line + "\n"
+                    out += prefix + line + "\n"
             elif self.selected:
-                text_patch = self.patch.data.decode('utf-8')
-                lines = text_patch.splitlines()
-                for line in lines:
-                    out += line + "\n"
-            return out
+                self.logger.debug(f"{self.patch.delta.new_file.path} is fully selected and delta status = {self.patch.delta.status} for {self.patch.delta.new_file.path}")
+                is_partial = False
+                if self.patch.delta.status == DeltaStatus.DELETED:
+                    out += prefix + " [-] " + self.patch.delta.new_file.path
+                else:
+                    out += prefix + " [+] " + self.patch.delta.new_file.path
+            self.logger.debug(f"output = [{out}]")
+            return (is_partial, out)
 
         def export_patch(self, fil, prefix):
             # do not do anything if it's binary
